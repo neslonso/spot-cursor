@@ -1,0 +1,23 @@
+[package]
+name = "find-my-cursor"
+version = "0.1.0"
+edition = "2021"
+authors = ["Néstor"]
+description = "Spotlight portable para localizar el cursor - estilo PowerToys"
+
+[dependencies.windows]
+version = "0.58"
+features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Gdi",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_System_LibraryLoader",
+    "Win32_UI_Input_KeyboardAndMouse",
+]
+
+[profile.release]
+opt-level = "z"     # Optimizar tamaño
+lto = true          # Link-time optimization
+codegen-units = 1   # Mejor optimización
+panic = "abort"     # Reduce tamaño
+strip = true        # Strip symbols
