@@ -14,7 +14,10 @@
 
 #![windows_subsystem = "windows"]
 
-use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU64, Ordering};
+use serde::{Deserialize, Serialize};
+use std::fs;
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU64, AtomicU8, Ordering};
 use std::sync::OnceLock;
 use windows::core::*;
 use windows::Win32::Foundation::*;
@@ -22,34 +25,124 @@ use windows::Win32::Graphics::Gdi::*;
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::System::SystemInformation::GetTickCount64;
 use windows::Win32::UI::Input::KeyboardAndMouse::*;
+use windows::Win32::UI::Shell::*;
 use windows::Win32::UI::WindowsAndMessaging::*;
 
 // =============================================================================
 // CONFIGURACIÓN
 // =============================================================================
 
-/// Configuración del comportamiento del spotlight
-struct Config;
+/// Valores por defecto de la configuración
+struct ConfigDefaults;
 
-impl Config {
-    /// Tiempo máximo entre pulsaciones de Ctrl para activar (ms)
+impl ConfigDefaults {
     const DOUBLE_TAP_TIME_MS: u64 = 400;
-
-    /// Tiempo mínimo entre pulsaciones para evitar falsos positivos (ms)
     const DOUBLE_TAP_MIN_TIME_MS: u64 = 50;
-
-    /// Opacidad del fondo oscuro (0-255)
     const BACKDROP_OPACITY: u8 = 180;
-
-    /// Radio del círculo de luz alrededor del cursor (píxeles)
     const SPOTLIGHT_RADIUS: i32 = 100;
-
-    /// Tiempo de inactividad antes de auto-ocultar (ms)
     const AUTO_HIDE_DELAY_MS: u64 = 2000;
-
-    /// Intervalo de actualización del spotlight (ms)
     const UPDATE_INTERVAL_MS: u32 = 16; // ~60 FPS
 }
+
+/// Configuración serializable para persistencia
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct Settings {
+    pub double_tap_time_ms: u64,
+    pub backdrop_opacity: u8,
+    pub spotlight_radius: i32,
+    pub auto_hide_delay_ms: u64,
+}
+
+impl Settings {
+    /// Crea una configuración con valores por defecto
+    fn default() -> Self {
+        Self {
+            double_tap_time_ms: ConfigDefaults::DOUBLE_TAP_TIME_MS,
+            backdrop_opacity: ConfigDefaults::BACKDROP_OPACITY,
+            spotlight_radius: ConfigDefaults::SPOTLIGHT_RADIUS,
+            auto_hide_delay_ms: ConfigDefaults::AUTO_HIDE_DELAY_MS,
+        }
+    }
+
+    /// Valida que los valores estén en rangos válidos
+    fn validate(&self) -> std::result::Result<(), String> {
+        if self.double_tap_time_ms < 50 || self.double_tap_time_ms > 1000 {
+            return Err("Double tap time debe estar entre 50-1000ms".to_string());
+        }
+        if self.spotlight_radius < 50 || self.spotlight_radius > 300 {
+            return Err("Radio debe estar entre 50-300 píxeles".to_string());
+        }
+        if self.auto_hide_delay_ms < 500 || self.auto_hide_delay_ms > 10000 {
+            return Err("Auto-hide delay debe estar entre 500-10000ms".to_string());
+        }
+        Ok(())
+    }
+}
+
+/// Configuración runtime con valores atómicos para acceso thread-safe
+struct RuntimeConfig {
+    double_tap_time_ms: AtomicU64,
+    backdrop_opacity: AtomicU8,
+    spotlight_radius: AtomicI32,
+    auto_hide_delay_ms: AtomicU64,
+}
+
+impl RuntimeConfig {
+    /// Crea una configuración runtime con valores por defecto
+    fn new() -> Self {
+        Self {
+            double_tap_time_ms: AtomicU64::new(ConfigDefaults::DOUBLE_TAP_TIME_MS),
+            backdrop_opacity: AtomicU8::new(ConfigDefaults::BACKDROP_OPACITY),
+            spotlight_radius: AtomicI32::new(ConfigDefaults::SPOTLIGHT_RADIUS),
+            auto_hide_delay_ms: AtomicU64::new(ConfigDefaults::AUTO_HIDE_DELAY_MS),
+        }
+    }
+
+    /// Carga valores desde Settings
+    fn load_from(&self, settings: &Settings) {
+        self.double_tap_time_ms.store(settings.double_tap_time_ms, Ordering::Relaxed);
+        self.backdrop_opacity.store(settings.backdrop_opacity, Ordering::Relaxed);
+        self.spotlight_radius.store(settings.spotlight_radius, Ordering::Relaxed);
+        self.auto_hide_delay_ms.store(settings.auto_hide_delay_ms, Ordering::Relaxed);
+    }
+
+    /// Exporta valores actuales a Settings
+    fn to_settings(&self) -> Settings {
+        Settings {
+            double_tap_time_ms: self.double_tap_time_ms.load(Ordering::Relaxed),
+            backdrop_opacity: self.backdrop_opacity.load(Ordering::Relaxed),
+            spotlight_radius: self.spotlight_radius.load(Ordering::Relaxed),
+            auto_hide_delay_ms: self.auto_hide_delay_ms.load(Ordering::Relaxed),
+        }
+    }
+
+    /// Obtiene el tiempo máximo entre pulsaciones de Ctrl
+    #[inline]
+    fn double_tap_time_ms(&self) -> u64 {
+        self.double_tap_time_ms.load(Ordering::Relaxed)
+    }
+
+    /// Obtiene la opacidad del fondo
+    #[inline]
+    fn backdrop_opacity(&self) -> u8 {
+        self.backdrop_opacity.load(Ordering::Relaxed)
+    }
+
+    /// Obtiene el radio del spotlight
+    #[inline]
+    fn spotlight_radius(&self) -> i32 {
+        self.spotlight_radius.load(Ordering::Relaxed)
+    }
+
+    /// Obtiene el tiempo de auto-hide
+    #[inline]
+    fn auto_hide_delay_ms(&self) -> u64 {
+        self.auto_hide_delay_ms.load(Ordering::Relaxed)
+    }
+}
+
+/// Instancia global de la configuración runtime
+static RUNTIME_CONFIG: OnceLock<RuntimeConfig> = OnceLock::new();
 
 // =============================================================================
 // MENSAJES Y CONSTANTES WINDOWS
@@ -60,6 +153,15 @@ const WM_USER_SHOW_SPOTLIGHT: u32 = WM_USER + 1;
 
 /// Mensaje personalizado para ocultar el spotlight
 const WM_USER_HIDE_SPOTLIGHT: u32 = WM_USER + 2;
+
+/// Mensaje del system tray icon
+const WM_TRAYICON: u32 = WM_USER + 100;
+
+/// ID del icono en el system tray
+const TRAY_ICON_ID: u32 = 1;
+
+/// IDs de elementos del menú contextual
+const IDM_EXIT: u32 = 1001;
 
 /// ID del timer de actualización
 const TIMER_UPDATE: usize = 1;
@@ -121,6 +223,72 @@ impl VirtualScreen {
             height: GetSystemMetrics(SM_CYVIRTUALSCREEN),
         }
     }
+}
+
+// =============================================================================
+// PERSISTENCIA DE CONFIGURACIÓN
+// =============================================================================
+
+/// Obtiene la ruta del archivo de configuración
+fn get_config_path() -> std::result::Result<PathBuf, String> {
+    // Usar %APPDATA%/SpotCursor/config.json
+    let appdata = std::env::var("APPDATA")
+        .map_err(|_| "No se pudo obtener APPDATA".to_string())?;
+
+    let mut path = PathBuf::from(appdata);
+    path.push("SpotCursor");
+
+    // Crear directorio si no existe
+    if !path.exists() {
+        fs::create_dir_all(&path)
+            .map_err(|e| format!("No se pudo crear directorio de config: {}", e))?;
+    }
+
+    path.push("config.json");
+    Ok(path)
+}
+
+/// Guarda la configuración en archivo
+fn save_config(settings: &Settings) -> std::result::Result<(), String> {
+    // Validar antes de guardar
+    settings.validate()?;
+
+    let path = get_config_path()?;
+    let json = serde_json::to_string_pretty(settings)
+        .map_err(|e| format!("Error al serializar config: {}", e))?;
+
+    fs::write(&path, json)
+        .map_err(|e| format!("Error al guardar config: {}", e))?;
+
+    Ok(())
+}
+
+/// Carga la configuración desde archivo
+fn load_config() -> Settings {
+    match get_config_path() {
+        Ok(path) => {
+            if path.exists() {
+                match fs::read_to_string(&path) {
+                    Ok(json) => {
+                        match serde_json::from_str::<Settings>(&json) {
+                            Ok(settings) => {
+                                // Validar y retornar si es válido
+                                if settings.validate().is_ok() {
+                                    return settings;
+                                }
+                            }
+                            Err(_) => {}
+                        }
+                    }
+                    Err(_) => {}
+                }
+            }
+        }
+        Err(_) => {}
+    }
+
+    // Si falla la carga por cualquier razón, usar valores por defecto
+    Settings::default()
 }
 
 // =============================================================================
@@ -195,8 +363,9 @@ impl GlobalState {
 
         LAST_CTRL_TIME.store(now, Ordering::Relaxed);
 
-        elapsed > Config::DOUBLE_TAP_MIN_TIME_MS
-            && elapsed < Config::DOUBLE_TAP_TIME_MS
+        let config = RUNTIME_CONFIG.get().unwrap();
+        elapsed > ConfigDefaults::DOUBLE_TAP_MIN_TIME_MS
+            && elapsed < config.double_tap_time_ms()
     }
 
     /// Obtiene el handle de la ventana del spotlight
@@ -256,10 +425,11 @@ unsafe fn create_spotlight_window(instance: HMODULE) -> Result<HWND> {
     )?;
 
     // Configurar opacidad de la capa
+    let config = RUNTIME_CONFIG.get().unwrap();
     SetLayeredWindowAttributes(
         hwnd,
         COLORREF(0),
-        Config::BACKDROP_OPACITY,
+        config.backdrop_opacity(),
         LWA_ALPHA,
     )?;
 
@@ -288,11 +458,115 @@ unsafe extern "system" fn window_proc(
             }
             LRESULT(0)
         }
+        WM_TRAYICON => {
+            handle_tray_message(hwnd, lparam);
+            LRESULT(0)
+        }
+        WM_COMMAND => {
+            match wparam.0 as u32 {
+                IDM_EXIT => {
+                    remove_tray_icon(hwnd);
+                    PostQuitMessage(0);
+                }
+                _ => {}
+            }
+            LRESULT(0)
+        }
         WM_DESTROY => {
+            remove_tray_icon(hwnd);
             PostQuitMessage(0);
             LRESULT(0)
         }
         _ => DefWindowProcW(hwnd, msg, wparam, lparam),
+    }
+}
+
+// =============================================================================
+// SYSTEM TRAY
+// =============================================================================
+
+/// Crea un icono embebido simple
+/// Usa el icono predeterminado de aplicación de Windows
+unsafe fn create_embedded_icon() -> Result<HICON> {
+    LoadIconW(None, IDI_APPLICATION)
+}
+
+/// Añade el icono al system tray
+unsafe fn add_tray_icon(hwnd: HWND) -> Result<()> {
+    let mut nid = NOTIFYICONDATAW {
+        cbSize: std::mem::size_of::<NOTIFYICONDATAW>() as u32,
+        hWnd: hwnd,
+        uID: TRAY_ICON_ID,
+        uFlags: NIF_ICON | NIF_MESSAGE | NIF_TIP,
+        uCallbackMessage: WM_TRAYICON,
+        hIcon: create_embedded_icon()?,
+        ..Default::default()
+    };
+
+    // Tooltip
+    let tooltip = w!("SpotCursor - Doble Ctrl para activar");
+    let tooltip_bytes = tooltip.as_wide();
+    let copy_len = tooltip_bytes.len().min(nid.szTip.len() - 1);
+    nid.szTip[..copy_len].copy_from_slice(&tooltip_bytes[..copy_len]);
+
+    if Shell_NotifyIconW(NIM_ADD, &nid).as_bool() {
+        Ok(())
+    } else {
+        Err(Error::from_win32())
+    }
+}
+
+/// Elimina el icono del system tray
+unsafe fn remove_tray_icon(hwnd: HWND) {
+    let nid = NOTIFYICONDATAW {
+        cbSize: std::mem::size_of::<NOTIFYICONDATAW>() as u32,
+        hWnd: hwnd,
+        uID: TRAY_ICON_ID,
+        ..Default::default()
+    };
+
+    let _ = Shell_NotifyIconW(NIM_DELETE, &nid);
+}
+
+/// Muestra el menú contextual del system tray
+unsafe fn show_tray_menu(hwnd: HWND) {
+    let hmenu = CreatePopupMenu().unwrap();
+
+    // Añadir elementos del menú
+    let _ = AppendMenuW(hmenu, MF_STRING, IDM_EXIT as usize, w!("Salir"));
+
+    // Obtener posición del cursor para el menú
+    let mut pt = POINT::default();
+    let _ = GetCursorPos(&mut pt);
+
+    // Hacer que la ventana sea foreground para que el menú se cierre correctamente
+    let _ = SetForegroundWindow(hwnd);
+
+    // Mostrar menú
+    let _ = TrackPopupMenu(
+        hmenu,
+        TPM_RIGHTBUTTON,
+        pt.x,
+        pt.y,
+        0,
+        hwnd,
+        None,
+    );
+
+    // Limpiar
+    let _ = DestroyMenu(hmenu);
+}
+
+/// Maneja los mensajes del system tray
+unsafe fn handle_tray_message(hwnd: HWND, lparam: LPARAM) {
+    match lparam.0 as u32 {
+        WM_RBUTTONUP => {
+            show_tray_menu(hwnd);
+        }
+        WM_LBUTTONDBLCLK => {
+            // Doble click - reservado para futuras funcionalidades
+        }
+        _ => {}
     }
 }
 
@@ -420,7 +694,7 @@ unsafe fn show_spotlight(hwnd: HWND) {
     let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
 
     // Iniciar timer de actualización
-    let _ = SetTimer(hwnd, TIMER_UPDATE, Config::UPDATE_INTERVAL_MS, None);
+    let _ = SetTimer(hwnd, TIMER_UPDATE, ConfigDefaults::UPDATE_INTERVAL_MS, None);
 }
 
 /// Oculta el spotlight
@@ -463,7 +737,8 @@ unsafe fn update_spotlight(hwnd: HWND) {
         apply_spotlight_region(hwnd, current_pos, screen);
     } else {
         // Cursor quieto: verificar timeout de auto-hide
-        if GlobalState::time_since_last_move() > Config::AUTO_HIDE_DELAY_MS {
+        let config = RUNTIME_CONFIG.get().unwrap();
+        if GlobalState::time_since_last_move() > config.auto_hide_delay_ms() {
             hide_spotlight(hwnd);
         }
     }
@@ -487,11 +762,13 @@ unsafe fn apply_spotlight_region(
     let backdrop_region = CreateRectRgn(0, 0, screen.width, screen.height);
 
     // Crear región elíptica (el agujero)
+    let config = RUNTIME_CONFIG.get().unwrap();
+    let radius = config.spotlight_radius();
     let hole_region = CreateEllipticRgn(
-        rel_x - Config::SPOTLIGHT_RADIUS,
-        rel_y - Config::SPOTLIGHT_RADIUS,
-        rel_x + Config::SPOTLIGHT_RADIUS,
-        rel_y + Config::SPOTLIGHT_RADIUS,
+        rel_x - radius,
+        rel_y - radius,
+        rel_x + radius,
+        rel_y + radius,
     );
 
     // Restar el agujero del fondo
@@ -520,6 +797,16 @@ fn get_current_time_ms() -> u64 {
 
 fn main() -> Result<()> {
     unsafe {
+        // Inicializar configuración runtime
+        let runtime_config = RuntimeConfig::new();
+
+        // Cargar configuración desde archivo
+        let settings = load_config();
+        runtime_config.load_from(&settings);
+
+        // Almacenar configuración global
+        let _ = RUNTIME_CONFIG.set(runtime_config);
+
         // Obtener handle de la instancia
         let instance = GetModuleHandleW(None)?;
 
@@ -529,6 +816,9 @@ fn main() -> Result<()> {
         // Crear ventana del spotlight
         let hwnd = create_spotlight_window(instance)?;
         GlobalState::set_hwnd(hwnd);
+
+        // Crear icono en system tray
+        add_tray_icon(hwnd)?;
 
         // Instalar hooks globales
         let keyboard_hook = SetWindowsHookExW(

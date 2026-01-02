@@ -5,6 +5,10 @@ edition = "2021"
 authors = ["Néstor"]
 description = "Spotlight portable para localizar el cursor - estilo PowerToys"
 
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
 [dependencies.windows]
 version = "0.58"
 features = [
@@ -14,6 +18,8 @@ features = [
     "Win32_System_LibraryLoader",
     "Win32_UI_Input_KeyboardAndMouse",
     "Win32_System_SystemInformation",
+    "Win32_UI_Shell",              # Para system tray
+    "Win32_Storage_FileSystem",    # Para guardar config
 ]
 
 [profile.release]
