@@ -13,11 +13,12 @@ features = [
     "Win32_UI_WindowsAndMessaging",
     "Win32_System_LibraryLoader",
     "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_System_SystemInformation",
 ]
 
 [profile.release]
-opt-level = "z"     # Optimizar tamaño
-lto = true          # Link-time optimization
-codegen-units = 1   # Mejor optimización
-panic = "abort"     # Reduce tamaño
-strip = true        # Strip symbols
+opt-level = "z"   # Optimizar tamaño
+lto = true        # Link-time optimization
+codegen-units = 1 # Mejor optimización
+panic = "abort"   # Reduce tamaño
+strip = true      # Strip symbols
