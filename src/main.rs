@@ -1,4 +1,4 @@
-//! FindMyCursor - Spotlight portable estilo PowerToys
+//! SpotCursor - Spotlight portable estilo PowerToys
 //!
 //! Activación: Doble pulsación de Ctrl
 //! Desactivación: Clic, tecla, o auto-fade tras dejar de mover
@@ -53,7 +53,7 @@ fn main() -> Result<()> {
         let instance = GetModuleHandleW(None)?;
 
         // Registrar clase de ventana
-        let class_name = w!("FindMyCursorSpotlight");
+        let class_name = w!("SpotCursorSpotlight");
         let wc = WNDCLASSEXW {
             cbSize: std::mem::size_of::<WNDCLASSEXW>() as u32,
             style: CS_HREDRAW | CS_VREDRAW,
@@ -79,7 +79,7 @@ fn main() -> Result<()> {
         let hwnd = CreateWindowExW(
             WS_EX_LAYERED | WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT,
             class_name,
-            w!("FindMyCursor"),
+            w!("SpotCursor"),
             WS_POPUP,
             vx,
             vy,

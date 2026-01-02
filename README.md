@@ -1,4 +1,4 @@
-# FindMyCursor
+# SpotCursor
 
 Spotlight portable para localizar el cursor en configuraciones multi-monitor, estilo PowerToys.
 
@@ -45,15 +45,15 @@ cargo build --release --target x86_64-pc-windows-gnu
 ```
 
 El ejecutable estará en:
-- Debug: `target/x86_64-pc-windows-gnu/debug/find-my-cursor.exe`
-- Release: `target/x86_64-pc-windows-gnu/release/find-my-cursor.exe`
+- Debug: `target/x86_64-pc-windows-gnu/debug/spot-cursor.exe`
+- Release: `target/x86_64-pc-windows-gnu/release/spot-cursor.exe`
 
 ## Uso
 
-1. Copia `find-my-cursor.exe` a tu Windows
+1. Copia `spot-cursor.exe` a tu Windows
 2. Ejecútalo (se queda en segundo plano, sin ventana)
 3. Pulsa Ctrl dos veces rápidamente para activar el spotlight
-4. Para cerrar la aplicación: Administrador de tareas o `taskkill /IM find-my-cursor.exe`
+4. Para cerrar la aplicación: Administrador de tareas o `taskkill /IM spot-cursor.exe`
 
 ### Auto-inicio con Windows (opcional)
 

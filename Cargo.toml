@@ -1,5 +1,5 @@
 [package]
-name = "find-my-cursor"
+name = "spot-cursor"
 version = "0.1.0"
 edition = "2021"
 authors = ["Néstor"]

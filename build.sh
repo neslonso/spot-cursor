@@ -7,7 +7,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-echo -e "${YELLOW}=== FindMyCursor Build ===${NC}"
+echo -e "${YELLOW}=== SpotCursor Build ===${NC}"
 
 # Verificar requisitos
 check_requirements() {
@@ -40,10 +40,10 @@ build() {
     
     if [ "$mode" == "release" ]; then
         cargo build --release --target x86_64-pc-windows-gnu
-        local exe="target/x86_64-pc-windows-gnu/release/find-my-cursor.exe"
+        local exe="target/x86_64-pc-windows-gnu/release/spot-cursor.exe"
     else
         cargo build --target x86_64-pc-windows-gnu
-        local exe="target/x86_64-pc-windows-gnu/debug/find-my-cursor.exe"
+        local exe="target/x86_64-pc-windows-gnu/debug/spot-cursor.exe"
     fi
     
     if [ -f "$exe" ]; then
