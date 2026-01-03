@@ -1,0 +1,85 @@
+//! System tray icon y menú contextual
+
+use windows::core::*;
+use windows::Win32::Foundation::{HWND, LPARAM, POINT};
+use windows::Win32::UI::Shell::*;
+use windows::Win32::UI::WindowsAndMessaging::*;
+
+use crate::constants::{IDM_EXIT, TRAY_ICON_ID, WM_TRAYICON};
+
+/// Crea un icono embebido simple
+/// Usa el icono predeterminado de aplicación de Windows
+unsafe fn create_embedded_icon() -> Result<HICON> {
+    LoadIconW(None, IDI_APPLICATION)
+}
+
+/// Añade el icono al system tray
+pub unsafe fn add_tray_icon(hwnd: HWND) -> Result<()> {
+    let mut nid = NOTIFYICONDATAW {
+        cbSize: std::mem::size_of::<NOTIFYICONDATAW>() as u32,
+        hWnd: hwnd,
+        uID: TRAY_ICON_ID,
+        uFlags: NIF_ICON | NIF_MESSAGE | NIF_TIP,
+        uCallbackMessage: WM_TRAYICON,
+        hIcon: create_embedded_icon()?,
+        ..Default::default()
+    };
+
+    // Tooltip
+    let tooltip = w!("SpotCursor - Doble Ctrl para activar");
+    let tooltip_bytes = tooltip.as_wide();
+    let copy_len = tooltip_bytes.len().min(nid.szTip.len() - 1);
+    nid.szTip[..copy_len].copy_from_slice(&tooltip_bytes[..copy_len]);
+
+    if Shell_NotifyIconW(NIM_ADD, &nid).as_bool() {
+        Ok(())
+    } else {
+        Err(Error::from_win32())
+    }
+}
+
+/// Elimina el icono del system tray
+pub unsafe fn remove_tray_icon(hwnd: HWND) {
+    let nid = NOTIFYICONDATAW {
+        cbSize: std::mem::size_of::<NOTIFYICONDATAW>() as u32,
+        hWnd: hwnd,
+        uID: TRAY_ICON_ID,
+        ..Default::default()
+    };
+
+    let _ = Shell_NotifyIconW(NIM_DELETE, &nid);
+}
+
+/// Muestra el menú contextual del system tray
+unsafe fn show_tray_menu(hwnd: HWND) {
+    let hmenu = CreatePopupMenu().unwrap();
+
+    // Añadir elementos del menú
+    let _ = AppendMenuW(hmenu, MF_STRING, IDM_EXIT as usize, w!("Salir"));
+
+    // Obtener posición del cursor para el menú
+    let mut pt = POINT::default();
+    let _ = GetCursorPos(&mut pt);
+
+    // Hacer que la ventana sea foreground para que el menú se cierre correctamente
+    let _ = SetForegroundWindow(hwnd);
+
+    // Mostrar menú
+    let _ = TrackPopupMenu(hmenu, TPM_RIGHTBUTTON, pt.x, pt.y, 0, hwnd, None);
+
+    // Limpiar
+    let _ = DestroyMenu(hmenu);
+}
+
+/// Maneja los mensajes del system tray
+pub unsafe fn handle_tray_message(hwnd: HWND, lparam: LPARAM) {
+    match lparam.0 as u32 {
+        WM_RBUTTONUP => {
+            show_tray_menu(hwnd);
+        }
+        WM_LBUTTONDBLCLK => {
+            // Doble click - reservado para futuras funcionalidades
+        }
+        _ => {}
+    }
+}
