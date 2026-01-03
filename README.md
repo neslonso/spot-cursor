@@ -13,7 +13,7 @@ Spotlight portable para localizar el cursor en configuraciones multi-monitor, es
   - Doble Ctrl de nuevo
 - **System Tray:** Icono personalizado en la bandeja del sistema con menú de configuración
 - **Interfaz Gráfica:** Ventana de opciones con controles deslizantes para ajustar todos los parámetros
-- **Configuración Persistente:** Los ajustes se guardan automáticamente en `config.json` (mismo directorio del ejecutable)
+- **Configuración Persistente:** Los ajustes se guardan automáticamente en un archivo `.json` con el mismo nombre del ejecutable
 
 ## Configuración
 
@@ -21,7 +21,8 @@ La aplicación incluye una **interfaz gráfica de configuración** accesible des
 - Click derecho en el icono del system tray → "Opciones..."
 - Doble click en el icono del system tray
 
-La configuración se guarda automáticamente en `config.json` en el **mismo directorio que el ejecutable**.
+La configuración se guarda automáticamente en un archivo `.json` **con el mismo nombre del ejecutable** en el mismo directorio.
+Por ejemplo: `spot-cursor.exe` → `spot-cursor.json`
 
 Parámetros configurables:
 
@@ -30,7 +31,7 @@ Parámetros configurables:
 - **Radio del spotlight:** 50-500 px (predeterminado: 100 px)
 - **Retardo de auto-ocultado:** 100-5000 ms (predeterminado: 2000 ms)
 
-Formato del archivo `config.json`:
+Formato del archivo de configuración (ejemplo `spot-cursor.json`):
 ```json
 {
   "double_tap_time_ms": 400,
@@ -39,6 +40,8 @@ Formato del archivo `config.json`:
   "auto_hide_delay_ms": 2000
 }
 ```
+
+**Nota:** El archivo de configuración toma el nombre del ejecutable. Si renombras `spot-cursor.exe` a otro nombre, la configuración se guardará con ese nuevo nombre más la extensión `.json`.
 
 Si el archivo no existe, se creará automáticamente con valores por defecto al iniciar la aplicación. También puedes editarlo manualmente si lo prefieres.
 

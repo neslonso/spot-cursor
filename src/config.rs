@@ -151,6 +151,8 @@ pub static RUNTIME_CONFIG: OnceLock<RuntimeConfig> = OnceLock::new();
 // =============================================================================
 
 /// Obtiene la ruta del archivo de configuración
+/// El archivo se llama igual que el ejecutable pero con extensión .json
+/// Ejemplo: spot-cursor.exe -> spot-cursor.json
 fn get_config_path() -> std::result::Result<PathBuf, String> {
     // Usar el mismo directorio que el ejecutable
     let exe_path = std::env::current_exe()
@@ -160,7 +162,15 @@ fn get_config_path() -> std::result::Result<PathBuf, String> {
         .parent()
         .ok_or("No se pudo obtener el directorio del ejecutable")?;
 
-    let config_path = exe_dir.join("config.json");
+    // Obtener el nombre del ejecutable sin extensión y añadir .json
+    let config_name = exe_path
+        .file_stem()
+        .ok_or("No se pudo obtener el nombre del ejecutable")?
+        .to_string_lossy()
+        .to_string()
+        + ".json";
+
+    let config_path = exe_dir.join(config_name);
     Ok(config_path)
 }
 
