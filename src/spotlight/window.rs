@@ -9,7 +9,7 @@ use super::region::apply_spotlight_region;
 use super::state::GlobalState;
 use crate::config::{ConfigDefaults, RUNTIME_CONFIG};
 use crate::constants::*;
-use crate::tray::remove_tray_icon;
+use crate::tray::{handle_tray_command, remove_tray_icon};
 use crate::types::{Position, VirtualScreen};
 
 /// Registra la clase de ventana para el spotlight
@@ -87,12 +87,15 @@ pub unsafe extern "system" fn window_proc(
             LRESULT(0)
         }
         WM_COMMAND => {
-            match wparam.0 as u32 {
+            let command = wparam.0 as u32;
+            match command {
                 IDM_EXIT => {
                     remove_tray_icon(hwnd);
                     PostQuitMessage(0);
                 }
-                _ => {}
+                _ => {
+                    handle_tray_command(hwnd, command);
+                }
             }
             LRESULT(0)
         }

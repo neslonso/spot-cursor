@@ -15,7 +15,26 @@ pub const WM_TRAYICON: u32 = WM_USER + 100;
 pub const TRAY_ICON_ID: u32 = 1;
 
 /// IDs de elementos del menú contextual
+pub const IDM_OPTIONS: u32 = 1000;
 pub const IDM_EXIT: u32 = 1001;
 
 /// ID del timer de actualización
 pub const TIMER_UPDATE: usize = 1;
+
+/// IDs de controles del diálogo de configuración
+pub const IDC_DOUBLE_TAP_LABEL: i32 = 2001;
+pub const IDC_DOUBLE_TAP_SLIDER: i32 = 2002;
+pub const IDC_DOUBLE_TAP_VALUE: i32 = 2003;
+pub const IDC_OPACITY_LABEL: i32 = 2004;
+pub const IDC_OPACITY_SLIDER: i32 = 2005;
+pub const IDC_OPACITY_VALUE: i32 = 2006;
+pub const IDC_RADIUS_LABEL: i32 = 2007;
+pub const IDC_RADIUS_SLIDER: i32 = 2008;
+pub const IDC_RADIUS_VALUE: i32 = 2009;
+pub const IDC_AUTO_HIDE_LABEL: i32 = 2010;
+pub const IDC_AUTO_HIDE_SLIDER: i32 = 2011;
+pub const IDC_AUTO_HIDE_VALUE: i32 = 2012;
+
+/// Botones estándar del diálogo
+pub const IDOK: i32 = 1;
+pub const IDCANCEL: i32 = 2;

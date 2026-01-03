@@ -20,6 +20,7 @@
 mod config;
 mod constants;
 mod hooks;
+mod settings_dialog;
 mod spotlight;
 mod tray;
 mod types;

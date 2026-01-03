@@ -117,6 +117,30 @@ impl RuntimeConfig {
     pub fn auto_hide_delay_ms(&self) -> u64 {
         self.auto_hide_delay_ms.load(Ordering::Relaxed)
     }
+
+    /// Establece el tiempo máximo entre pulsaciones de Ctrl
+    #[inline]
+    pub fn set_double_tap_time_ms(&self, value: u64) {
+        self.double_tap_time_ms.store(value, Ordering::Relaxed);
+    }
+
+    /// Establece la opacidad del fondo
+    #[inline]
+    pub fn set_backdrop_opacity(&self, value: u8) {
+        self.backdrop_opacity.store(value, Ordering::Relaxed);
+    }
+
+    /// Establece el radio del spotlight
+    #[inline]
+    pub fn set_spotlight_radius(&self, value: i32) {
+        self.spotlight_radius.store(value, Ordering::Relaxed);
+    }
+
+    /// Establece el tiempo de auto-hide
+    #[inline]
+    pub fn set_auto_hide_delay_ms(&self, value: u64) {
+        self.auto_hide_delay_ms.store(value, Ordering::Relaxed);
+    }
 }
 
 /// Instancia global de la configuración runtime

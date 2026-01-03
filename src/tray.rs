@@ -5,7 +5,8 @@ use windows::Win32::Foundation::{HWND, LPARAM, POINT};
 use windows::Win32::UI::Shell::*;
 use windows::Win32::UI::WindowsAndMessaging::*;
 
-use crate::constants::{IDM_EXIT, TRAY_ICON_ID, WM_TRAYICON};
+use crate::constants::{IDM_EXIT, IDM_OPTIONS, TRAY_ICON_ID, WM_TRAYICON};
+use crate::settings_dialog::show_settings_dialog;
 
 /// Crea un icono embebido simple
 /// Usa el icono predeterminado de aplicación de Windows
@@ -55,6 +56,8 @@ unsafe fn show_tray_menu(hwnd: HWND) {
     let hmenu = CreatePopupMenu().unwrap();
 
     // Añadir elementos del menú
+    let _ = AppendMenuW(hmenu, MF_STRING, IDM_OPTIONS as usize, w!("Opciones..."));
+    let _ = AppendMenuW(hmenu, MF_SEPARATOR, 0, PCWSTR::null());
     let _ = AppendMenuW(hmenu, MF_STRING, IDM_EXIT as usize, w!("Salir"));
 
     // Obtener posición del cursor para el menú
@@ -78,7 +81,18 @@ pub unsafe fn handle_tray_message(hwnd: HWND, lparam: LPARAM) {
             show_tray_menu(hwnd);
         }
         WM_LBUTTONDBLCLK => {
-            // Doble click - reservado para futuras funcionalidades
+            // Doble click - abrir opciones
+            let _ = show_settings_dialog(hwnd);
+        }
+        _ => {}
+    }
+}
+
+/// Maneja los comandos del menú del system tray
+pub unsafe fn handle_tray_command(hwnd: HWND, command: u32) {
+    match command {
+        IDM_OPTIONS => {
+            let _ = show_settings_dialog(hwnd);
         }
         _ => {}
     }
