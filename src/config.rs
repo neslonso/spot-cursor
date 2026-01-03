@@ -152,21 +152,16 @@ pub static RUNTIME_CONFIG: OnceLock<RuntimeConfig> = OnceLock::new();
 
 /// Obtiene la ruta del archivo de configuración
 fn get_config_path() -> std::result::Result<PathBuf, String> {
-    // Usar %APPDATA%/SpotCursor/config.json
-    let appdata =
-        std::env::var("APPDATA").map_err(|_| "No se pudo obtener APPDATA".to_string())?;
+    // Usar el mismo directorio que el ejecutable
+    let exe_path = std::env::current_exe()
+        .map_err(|e| format!("No se pudo obtener la ruta del ejecutable: {}", e))?;
 
-    let mut path = PathBuf::from(appdata);
-    path.push("SpotCursor");
+    let exe_dir = exe_path
+        .parent()
+        .ok_or("No se pudo obtener el directorio del ejecutable")?;
 
-    // Crear directorio si no existe
-    if !path.exists() {
-        fs::create_dir_all(&path)
-            .map_err(|e| format!("No se pudo crear directorio de config: {}", e))?;
-    }
-
-    path.push("config.json");
-    Ok(path)
+    let config_path = exe_dir.join("config.json");
+    Ok(config_path)
 }
 
 /// Guarda la configuración en archivo

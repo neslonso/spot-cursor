@@ -11,29 +11,36 @@ Spotlight portable para localizar el cursor en configuraciones multi-monitor, es
   - Cualquier tecla
   - Automático tras 2 segundos sin mover el ratón
   - Doble Ctrl de nuevo
-- **System Tray:** Icono en la bandeja del sistema con menú de salida
-- **Configuración Persistente:** Los ajustes se guardan automáticamente en `%APPDATA%/SpotCursor/config.json`
+- **System Tray:** Icono personalizado en la bandeja del sistema con menú de configuración
+- **Interfaz Gráfica:** Ventana de opciones con controles deslizantes para ajustar todos los parámetros
+- **Configuración Persistente:** Los ajustes se guardan automáticamente en `config.json` (mismo directorio del ejecutable)
 
 ## Configuración
 
-La configuración se guarda automáticamente en formato JSON. Puedes editarla manualmente en:
+La aplicación incluye una **interfaz gráfica de configuración** accesible desde:
+- Click derecho en el icono del system tray → "Opciones..."
+- Doble click en el icono del system tray
 
-```
-%APPDATA%\SpotCursor\config.json
-```
+La configuración se guarda automáticamente en `config.json` en el **mismo directorio que el ejecutable**.
 
 Parámetros configurables:
 
+- **Tiempo de doble toque:** 100-1000 ms (predeterminado: 400 ms)
+- **Opacidad del fondo:** 0-255 (predeterminado: 180)
+- **Radio del spotlight:** 50-500 px (predeterminado: 100 px)
+- **Retardo de auto-ocultado:** 100-5000 ms (predeterminado: 2000 ms)
+
+Formato del archivo `config.json`:
 ```json
 {
-  "double_tap_time_ms": 400,    // Tiempo máximo entre pulsaciones de Ctrl (50-1000ms)
-  "backdrop_opacity": 180,       // Opacidad del fondo oscuro (0-255)
-  "spotlight_radius": 100,       // Radio del círculo de luz (50-300 píxeles)
-  "auto_hide_delay_ms": 2000    // Tiempo de inactividad antes de auto-ocultar (500-10000ms)
+  "double_tap_time_ms": 400,
+  "backdrop_opacity": 180,
+  "spotlight_radius": 100,
+  "auto_hide_delay_ms": 2000
 }
 ```
 
-Si el archivo no existe, se creará automáticamente con valores por defecto al iniciar la aplicación.
+Si el archivo no existe, se creará automáticamente con valores por defecto al iniciar la aplicación. También puedes editarlo manualmente si lo prefieres.
 
 ## Compilación
 
@@ -65,10 +72,14 @@ El ejecutable estará en:
 ## Uso
 
 1. Copia `spot-cursor.exe` a tu Windows
-2. Ejecútalo - aparecerá un icono en la bandeja del sistema
-3. Pulsa Ctrl dos veces rápidamente para activar el spotlight
-4. Para cerrar la aplicación:
-   - **Recomendado:** Click derecho en el icono del tray → Salir
+2. Ejecútalo - aparecerá un icono púrpura con un punto blanco en la bandeja del sistema
+3. **Configurar (opcional):**
+   - Click derecho en el icono → "Opciones..."
+   - Ajusta los parámetros con los controles deslizantes
+   - Click "OK" para guardar los cambios
+4. Pulsa **Ctrl dos veces** rápidamente para activar el spotlight
+5. Para cerrar la aplicación:
+   - **Recomendado:** Click derecho en el icono del tray → "Salir"
    - Alternativa: `taskkill /IM spot-cursor.exe` o Administrador de tareas
 
 ### Auto-inicio con Windows (opcional)
