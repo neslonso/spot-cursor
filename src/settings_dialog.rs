@@ -19,6 +19,7 @@ use crate::constants::{
     IDC_DOUBLE_TAP_SLIDER, IDC_DOUBLE_TAP_VALUE, IDC_OPACITY_LABEL, IDC_OPACITY_SLIDER,
     IDC_OPACITY_VALUE, IDC_RADIUS_LABEL, IDC_RADIUS_SLIDER, IDC_RADIUS_VALUE,
 };
+use crate::spotlight::GlobalState;
 
 // IDs de botones estándar (evitar ambigüedad)
 const IDOK: i32 = 1;
@@ -528,6 +529,16 @@ unsafe fn save_current_settings(hwnd: HWND) {
         config.set_backdrop_opacity(opacity);
         config.set_spotlight_radius(radius);
         config.set_auto_hide_delay_ms(auto_hide);
+
+        // Actualizar la opacidad de la ventana del spotlight inmediatamente
+        if let Some(spotlight_hwnd) = GlobalState::get_hwnd() {
+            let _ = SetLayeredWindowAttributes(
+                spotlight_hwnd,
+                COLORREF(0),
+                opacity,
+                LWA_ALPHA,
+            );
+        }
 
         // Crear Settings y guardar a JSON
         let settings = Settings {
