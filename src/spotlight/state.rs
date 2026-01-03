@@ -26,6 +26,15 @@ static LAST_MOVE_TIME: AtomicU64 = AtomicU64::new(0);
 /// Handle de la ventana del spotlight
 static SPOTLIGHT_HWND: OnceLock<SafeHwnd> = OnceLock::new();
 
+/// Indica si hay una animación en progreso
+static ANIMATING: AtomicBool = AtomicBool::new(false);
+
+/// Radio actual durante la animación
+static ANIMATION_CURRENT_RADIUS: AtomicI32 = AtomicI32::new(0);
+
+/// Timestamp de inicio de la animación
+static ANIMATION_START_TIME: AtomicU64 = AtomicU64::new(0);
+
 /// Estado global de la aplicación
 ///
 /// Se usa estado global con atomics porque los hooks de Windows requieren
@@ -87,6 +96,43 @@ impl GlobalState {
     /// Establece el handle de la ventana del spotlight
     pub fn set_hwnd(hwnd: HWND) {
         let _ = SPOTLIGHT_HWND.set(SafeHwnd(hwnd));
+    }
+
+    /// Inicia la animación del spotlight con un radio inicial
+    pub fn start_animation(initial_radius: i32) {
+        ANIMATION_CURRENT_RADIUS.store(initial_radius, Ordering::Relaxed);
+        ANIMATION_START_TIME.store(get_current_time_ms(), Ordering::Relaxed);
+        ANIMATING.store(true, Ordering::Relaxed);
+    }
+
+    /// Verifica si hay una animación en progreso
+    #[inline]
+    pub fn is_animating() -> bool {
+        ANIMATING.load(Ordering::Relaxed)
+    }
+
+    /// Obtiene el radio actual de la animación
+    #[inline]
+    pub fn get_animation_radius() -> i32 {
+        ANIMATION_CURRENT_RADIUS.load(Ordering::Relaxed)
+    }
+
+    /// Actualiza el radio de la animación y retorna el nuevo valor
+    pub fn update_animation_radius(new_radius: i32) -> i32 {
+        ANIMATION_CURRENT_RADIUS.store(new_radius, Ordering::Relaxed);
+        new_radius
+    }
+
+    /// Detiene la animación
+    pub fn stop_animation() {
+        ANIMATING.store(false, Ordering::Relaxed);
+    }
+
+    /// Obtiene el tiempo transcurrido desde el inicio de la animación (ms)
+    pub fn animation_elapsed_time() -> u64 {
+        let now = get_current_time_ms();
+        let start = ANIMATION_START_TIME.load(Ordering::Relaxed);
+        now.saturating_sub(start)
     }
 }
 

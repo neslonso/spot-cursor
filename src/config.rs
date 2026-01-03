@@ -16,6 +16,11 @@ impl ConfigDefaults {
     pub const SPOTLIGHT_RADIUS: i32 = 100;
     pub const AUTO_HIDE_DELAY_MS: u64 = 2000;
     pub const UPDATE_INTERVAL_MS: u32 = 16; // ~60 FPS
+
+    // Constantes de animación
+    pub const ANIMATION_INTERVAL_MS: u32 = 16; // ~60 FPS
+    pub const ANIMATION_INITIAL_RADIUS: i32 = 600; // Radio inicial grande
+    pub const ANIMATION_DURATION_MS: u64 = 300; // Duración total de la animación
 }
 
 /// Configuración serializable para persistencia

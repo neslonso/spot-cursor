@@ -21,6 +21,9 @@ pub const IDM_EXIT: u32 = 1001;
 /// ID del timer de actualización
 pub const TIMER_UPDATE: usize = 1;
 
+/// ID del timer de animación
+pub const TIMER_ANIMATION: usize = 2;
+
 /// IDs de controles del diálogo de configuración
 pub const IDC_DOUBLE_TAP_LABEL: i32 = 2001;
 pub const IDC_DOUBLE_TAP_SLIDER: i32 = 2002;

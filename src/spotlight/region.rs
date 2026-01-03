@@ -3,7 +3,6 @@
 use windows::Win32::Foundation::HWND;
 use windows::Win32::Graphics::Gdi::*;
 
-use crate::config::RUNTIME_CONFIG;
 use crate::types::{Position, VirtualScreen};
 
 /// Aplica la región del spotlight (fondo con agujero circular)
@@ -11,6 +10,7 @@ pub unsafe fn apply_spotlight_region(
     hwnd: HWND,
     cursor_pos: Position,
     screen: VirtualScreen,
+    radius: i32,
 ) {
     // Convertir a coordenadas relativas a la ventana
     let rel_x = cursor_pos.x - screen.x;
@@ -19,9 +19,7 @@ pub unsafe fn apply_spotlight_region(
     // Crear región rectangular (todo el fondo)
     let backdrop_region = CreateRectRgn(0, 0, screen.width, screen.height);
 
-    // Crear región elíptica (el agujero)
-    let config = RUNTIME_CONFIG.get().unwrap();
-    let radius = config.spotlight_radius();
+    // Crear región elíptica (el agujero) con el radio especificado
     let hole_region = CreateEllipticRgn(
         rel_x - radius,
         rel_y - radius,

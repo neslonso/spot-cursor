@@ -77,8 +77,14 @@ pub unsafe extern "system" fn window_proc(
             LRESULT(0)
         }
         WM_TIMER => {
-            if wparam.0 == TIMER_UPDATE {
-                update_spotlight(hwnd);
+            match wparam.0 {
+                TIMER_UPDATE => {
+                    update_spotlight(hwnd);
+                }
+                TIMER_ANIMATION => {
+                    animate_spotlight(hwnd);
+                }
+                _ => {}
             }
             LRESULT(0)
         }
@@ -137,14 +143,24 @@ pub unsafe fn show_spotlight(hwnd: HWND) {
         SWP_NOACTIVATE,
     );
 
-    // Aplicar región con agujero en el cursor
-    apply_spotlight_region(hwnd, cursor_pos, screen);
+    // Iniciar animación con radio grande
+    GlobalState::start_animation(ConfigDefaults::ANIMATION_INITIAL_RADIUS);
+
+    // Aplicar región inicial con el radio de animación
+    let initial_radius = GlobalState::get_animation_radius();
+    apply_spotlight_region(hwnd, cursor_pos, screen, initial_radius);
 
     // Mostrar ventana sin activarla
     let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
 
-    // Iniciar timer de actualización
+    // Iniciar timers
     let _ = SetTimer(hwnd, TIMER_UPDATE, ConfigDefaults::UPDATE_INTERVAL_MS, None);
+    let _ = SetTimer(
+        hwnd,
+        TIMER_ANIMATION,
+        ConfigDefaults::ANIMATION_INTERVAL_MS,
+        None,
+    );
 }
 
 /// Oculta el spotlight
@@ -156,7 +172,13 @@ pub unsafe fn hide_spotlight(hwnd: HWND) {
 
     GlobalState::set_active(false);
 
-    // Detener timer
+    // Detener animación si está activa
+    if GlobalState::is_animating() {
+        GlobalState::stop_animation();
+        let _ = KillTimer(hwnd, TIMER_ANIMATION);
+    }
+
+    // Detener timer de actualización
     let _ = KillTimer(hwnd, TIMER_UPDATE);
 
     // Ocultar ventana
@@ -184,7 +206,16 @@ pub unsafe fn update_spotlight(hwnd: HWND) {
         GlobalState::update_position(current_pos);
 
         let screen = VirtualScreen::get_current();
-        apply_spotlight_region(hwnd, current_pos, screen);
+
+        // Usar radio de animación si está activa, sino usar radio configurado
+        let radius = if GlobalState::is_animating() {
+            GlobalState::get_animation_radius()
+        } else {
+            let config = RUNTIME_CONFIG.get().unwrap();
+            config.spotlight_radius()
+        };
+
+        apply_spotlight_region(hwnd, current_pos, screen, radius);
     } else {
         // Cursor quieto: verificar timeout de auto-hide
         let config = RUNTIME_CONFIG.get().unwrap();
@@ -192,4 +223,42 @@ pub unsafe fn update_spotlight(hwnd: HWND) {
             hide_spotlight(hwnd);
         }
     }
+}
+
+/// Anima el spotlight durante la transición inicial
+pub unsafe fn animate_spotlight(hwnd: HWND) {
+    if !GlobalState::is_animating() {
+        return;
+    }
+
+    let elapsed = GlobalState::animation_elapsed_time();
+    let config = RUNTIME_CONFIG.get().unwrap();
+
+    // Si la animación ha terminado, detenerla
+    if elapsed >= ConfigDefaults::ANIMATION_DURATION_MS {
+        GlobalState::stop_animation();
+        let _ = KillTimer(hwnd, TIMER_ANIMATION);
+
+        // Aplicar región final con el radio configurado
+        let cursor_pos = GlobalState::get_last_position();
+        let screen = VirtualScreen::get_current();
+        apply_spotlight_region(hwnd, cursor_pos, screen, config.spotlight_radius());
+        return;
+    }
+
+    // Calcular progreso de la animación (0.0 a 1.0)
+    let progress = elapsed as f32 / ConfigDefaults::ANIMATION_DURATION_MS as f32;
+
+    // Interpolación lineal del radio
+    let initial_radius = ConfigDefaults::ANIMATION_INITIAL_RADIUS as f32;
+    let target_radius = config.spotlight_radius() as f32;
+    let current_radius = (initial_radius - (initial_radius - target_radius) * progress) as i32;
+
+    // Actualizar el radio actual
+    GlobalState::update_animation_radius(current_radius);
+
+    // Aplicar la región con el nuevo radio
+    let cursor_pos = GlobalState::get_last_position();
+    let screen = VirtualScreen::get_current();
+    apply_spotlight_region(hwnd, cursor_pos, screen, current_radius);
 }
