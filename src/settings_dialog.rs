@@ -95,7 +95,7 @@ unsafe fn register_dialog_class() -> Result<()> {
         hInstance: instance,
         lpszClassName: SETTINGS_DIALOG_CLASS,
         hCursor: LoadCursorW(None, IDC_ARROW)?,
-        hbrBackground: HBRUSH((COLOR_WINDOW.0 as i32 + 1) as isize as *mut _),
+        hbrBackground: HBRUSH((COLOR_BTNFACE.0 as i32 + 1) as isize as *mut _),
         style: CS_HREDRAW | CS_VREDRAW,
         ..Default::default()
     };
