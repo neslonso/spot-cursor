@@ -53,13 +53,13 @@ pub unsafe fn create_spotlight_window(instance: HINSTANCE) -> Result<HWND> {
         None,
     )?;
 
-    // Configurar opacidad y color de la capa
+    // Configurar solo opacidad (el color se aplica via WM_ERASEBKGND)
     let config = RUNTIME_CONFIG.get().unwrap();
     SetLayeredWindowAttributes(
         hwnd,
-        COLORREF(config.backdrop_color()),
+        COLORREF(0),
         config.backdrop_opacity(),
-        LWA_COLORKEY | LWA_ALPHA,
+        LWA_ALPHA,
     )?;
 
     Ok(hwnd)
@@ -114,6 +114,19 @@ pub unsafe extern "system" fn window_proc(
             remove_tray_icon(hwnd);
             PostQuitMessage(0);
             LRESULT(0)
+        }
+        WM_ERASEBKGND => {
+            // Pintar el fondo con el color configurado
+            if let Some(config) = RUNTIME_CONFIG.get() {
+                let hdc = HDC(wparam.0 as _);
+                let mut rect = RECT::default();
+                let _ = GetClientRect(hwnd, &mut rect);
+
+                let brush = CreateSolidBrush(COLORREF(config.backdrop_color()));
+                let _ = FillRect(hdc, &rect, brush);
+                let _ = DeleteObject(brush);
+            }
+            LRESULT(1) // Retornar 1 para indicar que pintamos el fondo
         }
         _ => DefWindowProcW(hwnd, msg, wparam, lparam),
     }

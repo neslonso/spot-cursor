@@ -18,15 +18,20 @@ use crate::constants::{
     IDC_ANIMATION_DURATION_LABEL, IDC_ANIMATION_DURATION_SLIDER, IDC_ANIMATION_DURATION_VALUE,
     IDC_ANIMATION_ENABLE, IDC_ANIMATION_RADIUS_LABEL, IDC_ANIMATION_RADIUS_SLIDER,
     IDC_ANIMATION_RADIUS_VALUE, IDC_AUTO_HIDE_LABEL, IDC_AUTO_HIDE_SLIDER, IDC_AUTO_HIDE_VALUE,
-    IDC_COLOR_COMBO, IDC_COLOR_LABEL, IDC_DOUBLE_TAP_LABEL, IDC_DOUBLE_TAP_SLIDER,
-    IDC_DOUBLE_TAP_VALUE, IDC_OPACITY_LABEL, IDC_OPACITY_SLIDER, IDC_OPACITY_VALUE,
-    IDC_RADIUS_LABEL, IDC_RADIUS_SLIDER, IDC_RADIUS_VALUE,
+    IDC_COLOR_BUTTON, IDC_COLOR_LABEL, IDC_COLOR_PREVIEW, IDC_DOUBLE_TAP_LABEL,
+    IDC_DOUBLE_TAP_SLIDER, IDC_DOUBLE_TAP_VALUE, IDC_OPACITY_LABEL, IDC_OPACITY_SLIDER,
+    IDC_OPACITY_VALUE, IDC_RADIUS_LABEL, IDC_RADIUS_SLIDER, IDC_RADIUS_VALUE,
 };
 use crate::spotlight::GlobalState;
+
+use std::sync::atomic::{AtomicU32, Ordering};
 
 // IDs de botones estándar (evitar ambigüedad)
 const IDOK: i32 = 1;
 const IDCANCEL: i32 = 2;
+
+// Color seleccionado actual (para el diálogo de configuración)
+static SELECTED_COLOR: AtomicU32 = AtomicU32::new(0x00000000);
 
 // Mensajes de trackbar que no están en windows-rs
 const TBM_GETPOS: u32 = 0x0400;
@@ -34,16 +39,17 @@ const TBM_SETPOS: u32 = 0x0405;
 const TBM_SETRANGE: u32 = 0x0406;
 const TBM_SETTICFREQ: u32 = 0x0414;
 
-const DIALOG_WIDTH: i32 = 450;
-const DIALOG_HEIGHT: i32 = 550; // Aumentado para nuevos controles
-const MARGIN: i32 = 20;
-const CONTROL_HEIGHT: i32 = 25;
-const LABEL_HEIGHT: i32 = 20;
-const SPACING: i32 = 15;
-const SLIDER_WIDTH: i32 = 280;
+const DIALOG_WIDTH: i32 = 480;
+const DIALOG_HEIGHT: i32 = 650;
+const MARGIN: i32 = 25;
+const CONTROL_HEIGHT: i32 = 28;
+const LABEL_HEIGHT: i32 = 22;
+const SPACING: i32 = 12; // Espaciado entre controles relacionados
+const SECTION_SPACING: i32 = 25; // Espaciado entre secciones
+const SLIDER_WIDTH: i32 = 300;
 const VALUE_WIDTH: i32 = 80;
 const BUTTON_WIDTH: i32 = 100;
-const BUTTON_HEIGHT: i32 = 30;
+const BUTTON_HEIGHT: i32 = 32;
 
 /// Clase de ventana para el diálogo
 const SETTINGS_DIALOG_CLASS: PCWSTR = w!("SpotCursorSettingsDialog");
@@ -144,12 +150,34 @@ unsafe extern "system" fn dialog_proc(
                     let _ = DestroyWindow(hwnd);
                     LRESULT(0)
                 }
+                IDC_COLOR_BUTTON => {
+                    open_color_picker(hwnd);
+                    LRESULT(0)
+                }
                 _ => DefWindowProcW(hwnd, msg, wparam, lparam),
             }
         }
         WM_CLOSE => {
             let _ = DestroyWindow(hwnd);
             LRESULT(0)
+        }
+        WM_CTLCOLORSTATIC => {
+            // Pintar el preview del color
+            let control_hwnd = HWND(lparam.0 as _);
+            let control_id = GetDlgCtrlID(control_hwnd);
+
+            if control_id == IDC_COLOR_PREVIEW {
+                let hdc = HDC(wparam.0 as _);
+                let color = SELECTED_COLOR.load(Ordering::Relaxed);
+                let brush = CreateSolidBrush(COLORREF(color));
+
+                let mut rect = RECT::default();
+                let _ = GetClientRect(control_hwnd, &mut rect);
+                let _ = FillRect(hdc, &rect, brush);
+
+                return LRESULT(brush.0 as isize);
+            }
+            DefWindowProcW(hwnd, msg, wparam, lparam)
         }
         _ => DefWindowProcW(hwnd, msg, wparam, lparam),
     }
@@ -310,7 +338,7 @@ unsafe fn create_controls(hwnd: HWND) {
         IDC_AUTO_HIDE_VALUE,
     );
 
-    y_pos += CONTROL_HEIGHT + SPACING + 10;
+    y_pos += CONTROL_HEIGHT + SECTION_SPACING;
 
     // --- Color del backdrop ---
     create_label(
@@ -325,8 +353,22 @@ unsafe fn create_controls(hwnd: HWND) {
     );
     y_pos += LABEL_HEIGHT + 5;
 
-    create_color_combo(hwnd, instance, MARGIN, y_pos, 200, 100, IDC_COLOR_COMBO);
-    y_pos += CONTROL_HEIGHT + SPACING + 10;
+    // Botón para seleccionar color
+    create_button(
+        hwnd,
+        instance,
+        "Seleccionar...",
+        MARGIN,
+        y_pos,
+        120,
+        CONTROL_HEIGHT,
+        IDC_COLOR_BUTTON,
+    );
+
+    // Preview del color actual
+    create_color_preview(hwnd, instance, MARGIN + 130, y_pos, 60, CONTROL_HEIGHT, IDC_COLOR_PREVIEW);
+
+    y_pos += CONTROL_HEIGHT + SECTION_SPACING;
 
     // --- Animación ---
     create_checkbox(
@@ -415,7 +457,7 @@ unsafe fn create_controls(hwnd: HWND) {
         IDC_ANIMATION_DURATION_VALUE,
     );
 
-    y_pos += CONTROL_HEIGHT + SPACING + 10;
+    y_pos += CONTROL_HEIGHT + SECTION_SPACING;
 
     // --- Botones OK y Cancel ---
     let button_y = DIALOG_HEIGHT - MARGIN - BUTTON_HEIGHT - 40;
@@ -575,8 +617,8 @@ unsafe fn create_checkbox(
     );
 }
 
-/// Crea un combobox para seleccionar colores
-unsafe fn create_color_combo(
+/// Crea un preview del color seleccionado
+unsafe fn create_color_preview(
     parent: HWND,
     instance: HINSTANCE,
     x: i32,
@@ -585,14 +627,11 @@ unsafe fn create_color_combo(
     height: i32,
     id: i32,
 ) {
-    const CB_ADDSTRING: u32 = 0x0143;
-    const CB_SETITEMDATA: u32 = 0x0151;
-
-    let combo = CreateWindowExW(
-        WINDOW_EX_STYLE::default(),
-        w!("COMBOBOX"),
+    let _ = CreateWindowExW(
+        WINDOW_EX_STYLE(WS_EX_CLIENTEDGE.0),
+        w!("STATIC"),
         w!(""),
-        WS_CHILD | WS_VISIBLE | WS_TABSTOP | WINDOW_STYLE(CBS_DROPDOWNLIST as u32),
+        WS_CHILD | WS_VISIBLE,
         x,
         y,
         width,
@@ -601,32 +640,7 @@ unsafe fn create_color_combo(
         HMENU(id as *mut _),
         instance,
         None,
-    )
-    .unwrap();
-
-    // Añadir opciones de color
-    let colors = [
-        ("Negro", 0x00000000u32),
-        ("Gris oscuro", 0x00404040u32),
-        ("Gris", 0x00808080u32),
-        ("Azul oscuro", 0x00800000u32),
-        ("Verde oscuro", 0x00008000u32),
-        ("Rojo oscuro", 0x00000080u32),
-        ("Azul", 0x00FF0000u32),
-        ("Verde", 0x0000FF00u32),
-        ("Rojo", 0x000000FFu32),
-    ];
-
-    for (_i, (name, value)) in colors.iter().enumerate() {
-        let name_wide: Vec<u16> = name.encode_utf16().chain(Some(0)).collect();
-        let idx = SendMessageW(
-            combo,
-            CB_ADDSTRING,
-            WPARAM(0),
-            LPARAM(name_wide.as_ptr() as isize),
-        );
-        let _ = SendMessageW(combo, CB_SETITEMDATA, WPARAM(idx.0 as usize), LPARAM(*value as isize));
-    }
+    );
 }
 
 /// Carga la configuración actual en los controles
@@ -654,7 +668,8 @@ unsafe fn load_current_settings(hwnd: HWND) {
 
         // Color del backdrop
         let color = config.backdrop_color();
-        set_color_combo_value(hwnd, IDC_COLOR_COMBO, color);
+        SELECTED_COLOR.store(color, Ordering::Relaxed);
+        update_color_preview(hwnd, IDC_COLOR_PREVIEW, color);
 
         // Animación habilitada
         let animation_enabled = config.animation_enabled();
@@ -710,36 +725,61 @@ unsafe fn get_checkbox_value(hwnd: HWND, checkbox_id: i32) -> bool {
     false
 }
 
-/// Establece el color seleccionado en el combobox
-unsafe fn set_color_combo_value(hwnd: HWND, combo_id: i32, color: u32) {
-    const CB_GETCOUNT: u32 = 0x0146;
-    const CB_GETITEMDATA: u32 = 0x0150;
-    const CB_SETCURSEL: u32 = 0x014E;
-
-    if let Ok(combo) = GetDlgItem(hwnd, combo_id) {
-        let count = SendMessageW(combo, CB_GETCOUNT, WPARAM(0), LPARAM(0)).0;
-        for i in 0..count {
-            let item_data = SendMessageW(combo, CB_GETITEMDATA, WPARAM(i as usize), LPARAM(0)).0 as u32;
-            if item_data == color {
-                let _ = SendMessageW(combo, CB_SETCURSEL, WPARAM(i as usize), LPARAM(0));
-                break;
-            }
-        }
+/// Actualiza el preview del color
+unsafe fn update_color_preview(hwnd: HWND, preview_id: i32, color: u32) {
+    if let Ok(preview) = GetDlgItem(hwnd, preview_id) {
+        // Forzar repintado del control
+        let _ = InvalidateRect(preview, None, TRUE);
     }
 }
 
-/// Obtiene el color seleccionado del combobox
-unsafe fn get_color_combo_value(hwnd: HWND, combo_id: i32) -> u32 {
-    const CB_GETCURSEL: u32 = 0x0147;
-    const CB_GETITEMDATA: u32 = 0x0150;
+/// Estructura CHOOSECOLORW para el diálogo de selección de color
+#[repr(C)]
+struct ChooseColorW {
+    lStructSize: u32,
+    hwndOwner: HWND,
+    hInstance: isize,
+    rgbResult: u32,
+    lpCustColors: *mut u32,
+    Flags: u32,
+    lCustData: isize,
+    lpfnHook: usize,
+    lpTemplateName: *const u16,
+}
 
-    if let Ok(combo) = GetDlgItem(hwnd, combo_id) {
-        let sel = SendMessageW(combo, CB_GETCURSEL, WPARAM(0), LPARAM(0)).0;
-        if sel >= 0 {
-            return SendMessageW(combo, CB_GETITEMDATA, WPARAM(sel as usize), LPARAM(0)).0 as u32;
-        }
+/// Abre el diálogo nativo de selección de color
+unsafe fn open_color_picker(hwnd: HWND) {
+    let current_color = SELECTED_COLOR.load(Ordering::Relaxed);
+
+    // Crear array de colores personalizados (requerido por ChooseColorW)
+    let mut custom_colors = [0u32; 16];
+
+    const CC_FULLOPEN: u32 = 0x00000002;
+    const CC_RGBINIT: u32 = 0x00000001;
+
+    let mut cc = ChooseColorW {
+        lStructSize: std::mem::size_of::<ChooseColorW>() as u32,
+        hwndOwner: hwnd,
+        hInstance: 0,
+        rgbResult: current_color,
+        lpCustColors: custom_colors.as_mut_ptr(),
+        Flags: CC_FULLOPEN | CC_RGBINIT,
+        lCustData: 0,
+        lpfnHook: 0,
+        lpTemplateName: std::ptr::null(),
+    };
+
+    // Usar función externa ChooseColorW de comdlg32.dll
+    #[link(name = "comdlg32")]
+    extern "system" {
+        fn ChooseColorW(lpcc: *mut ChooseColorW) -> i32;
     }
-    0x00000000 // Negro por defecto
+
+    if ChooseColorW(&mut cc) != 0 {
+        let new_color = cc.rgbResult;
+        SELECTED_COLOR.store(new_color, Ordering::Relaxed);
+        update_color_preview(hwnd, IDC_COLOR_PREVIEW, new_color);
+    }
 }
 
 /// Actualiza el label que muestra el valor actual
@@ -794,7 +834,7 @@ unsafe fn save_current_settings(hwnd: HWND) {
     let auto_hide = get_slider_value(hwnd, IDC_AUTO_HIDE_SLIDER) as u64;
 
     // Obtener valores de color y animación
-    let backdrop_color = get_color_combo_value(hwnd, IDC_COLOR_COMBO);
+    let backdrop_color = SELECTED_COLOR.load(Ordering::Relaxed);
     let animation_enabled = get_checkbox_value(hwnd, IDC_ANIMATION_ENABLE);
     let animation_initial_radius = get_slider_value(hwnd, IDC_ANIMATION_RADIUS_SLIDER);
     let animation_duration_ms = get_slider_value(hwnd, IDC_ANIMATION_DURATION_SLIDER) as u64;
@@ -810,14 +850,16 @@ unsafe fn save_current_settings(hwnd: HWND) {
         config.set_animation_initial_radius(animation_initial_radius);
         config.set_animation_duration_ms(animation_duration_ms);
 
-        // Actualizar la opacidad y color de la ventana del spotlight inmediatamente
+        // Actualizar la opacidad de la ventana del spotlight inmediatamente
         if let Some(spotlight_hwnd) = GlobalState::get_hwnd() {
             let _ = SetLayeredWindowAttributes(
                 spotlight_hwnd,
-                COLORREF(backdrop_color),
+                COLORREF(0),
                 opacity,
-                LWA_COLORKEY | LWA_ALPHA,
+                LWA_ALPHA,
             );
+            // Forzar repintado para aplicar el nuevo color
+            let _ = InvalidateRect(spotlight_hwnd, None, TRUE);
         }
 
         // Crear Settings y guardar a JSON
