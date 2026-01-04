@@ -15,9 +15,12 @@ use windows::Win32::UI::WindowsAndMessaging::*;
 
 use crate::config::{save_config, Settings, RUNTIME_CONFIG};
 use crate::constants::{
-    IDC_AUTO_HIDE_LABEL, IDC_AUTO_HIDE_SLIDER, IDC_AUTO_HIDE_VALUE, IDC_DOUBLE_TAP_LABEL,
-    IDC_DOUBLE_TAP_SLIDER, IDC_DOUBLE_TAP_VALUE, IDC_OPACITY_LABEL, IDC_OPACITY_SLIDER,
-    IDC_OPACITY_VALUE, IDC_RADIUS_LABEL, IDC_RADIUS_SLIDER, IDC_RADIUS_VALUE,
+    IDC_ANIMATION_DURATION_LABEL, IDC_ANIMATION_DURATION_SLIDER, IDC_ANIMATION_DURATION_VALUE,
+    IDC_ANIMATION_ENABLE, IDC_ANIMATION_RADIUS_LABEL, IDC_ANIMATION_RADIUS_SLIDER,
+    IDC_ANIMATION_RADIUS_VALUE, IDC_AUTO_HIDE_LABEL, IDC_AUTO_HIDE_SLIDER, IDC_AUTO_HIDE_VALUE,
+    IDC_COLOR_COMBO, IDC_COLOR_LABEL, IDC_DOUBLE_TAP_LABEL, IDC_DOUBLE_TAP_SLIDER,
+    IDC_DOUBLE_TAP_VALUE, IDC_OPACITY_LABEL, IDC_OPACITY_SLIDER, IDC_OPACITY_VALUE,
+    IDC_RADIUS_LABEL, IDC_RADIUS_SLIDER, IDC_RADIUS_VALUE,
 };
 use crate::spotlight::GlobalState;
 
@@ -32,7 +35,7 @@ const TBM_SETRANGE: u32 = 0x0406;
 const TBM_SETTICFREQ: u32 = 0x0414;
 
 const DIALOG_WIDTH: i32 = 450;
-const DIALOG_HEIGHT: i32 = 350;
+const DIALOG_HEIGHT: i32 = 550; // Aumentado para nuevos controles
 const MARGIN: i32 = 20;
 const CONTROL_HEIGHT: i32 = 25;
 const LABEL_HEIGHT: i32 = 20;
@@ -309,6 +312,111 @@ unsafe fn create_controls(hwnd: HWND) {
 
     y_pos += CONTROL_HEIGHT + SPACING + 10;
 
+    // --- Color del backdrop ---
+    create_label(
+        hwnd,
+        instance,
+        "Color de fondo:",
+        MARGIN,
+        y_pos,
+        SLIDER_WIDTH,
+        LABEL_HEIGHT,
+        IDC_COLOR_LABEL,
+    );
+    y_pos += LABEL_HEIGHT + 5;
+
+    create_color_combo(hwnd, instance, MARGIN, y_pos, 200, 100, IDC_COLOR_COMBO);
+    y_pos += CONTROL_HEIGHT + SPACING + 10;
+
+    // --- Animación ---
+    create_checkbox(
+        hwnd,
+        instance,
+        "Habilitar animación de apertura",
+        MARGIN,
+        y_pos,
+        SLIDER_WIDTH,
+        CONTROL_HEIGHT,
+        IDC_ANIMATION_ENABLE,
+    );
+    y_pos += CONTROL_HEIGHT + SPACING;
+
+    // --- Radio inicial de animación ---
+    create_label(
+        hwnd,
+        instance,
+        "Radio inicial de animación (px):",
+        MARGIN,
+        y_pos,
+        SLIDER_WIDTH,
+        LABEL_HEIGHT,
+        IDC_ANIMATION_RADIUS_LABEL,
+    );
+    y_pos += LABEL_HEIGHT + 5;
+
+    create_slider(
+        hwnd,
+        instance,
+        MARGIN,
+        y_pos,
+        SLIDER_WIDTH,
+        CONTROL_HEIGHT,
+        IDC_ANIMATION_RADIUS_SLIDER,
+        100,
+        1000,
+    );
+
+    create_label(
+        hwnd,
+        instance,
+        "600",
+        MARGIN + SLIDER_WIDTH + 10,
+        y_pos,
+        VALUE_WIDTH,
+        CONTROL_HEIGHT,
+        IDC_ANIMATION_RADIUS_VALUE,
+    );
+
+    y_pos += CONTROL_HEIGHT + SPACING;
+
+    // --- Duración de animación ---
+    create_label(
+        hwnd,
+        instance,
+        "Duración de animación (ms):",
+        MARGIN,
+        y_pos,
+        SLIDER_WIDTH,
+        LABEL_HEIGHT,
+        IDC_ANIMATION_DURATION_LABEL,
+    );
+    y_pos += LABEL_HEIGHT + 5;
+
+    create_slider(
+        hwnd,
+        instance,
+        MARGIN,
+        y_pos,
+        SLIDER_WIDTH,
+        CONTROL_HEIGHT,
+        IDC_ANIMATION_DURATION_SLIDER,
+        100,
+        2000,
+    );
+
+    create_label(
+        hwnd,
+        instance,
+        "300",
+        MARGIN + SLIDER_WIDTH + 10,
+        y_pos,
+        VALUE_WIDTH,
+        CONTROL_HEIGHT,
+        IDC_ANIMATION_DURATION_VALUE,
+    );
+
+    y_pos += CONTROL_HEIGHT + SPACING + 10;
+
     // --- Botones OK y Cancel ---
     let button_y = DIALOG_HEIGHT - MARGIN - BUTTON_HEIGHT - 40;
     let button_x_ok = DIALOG_WIDTH - MARGIN - BUTTON_WIDTH * 2 - 10;
@@ -438,6 +546,89 @@ unsafe fn create_button(
     );
 }
 
+/// Crea un checkbox
+unsafe fn create_checkbox(
+    parent: HWND,
+    instance: HINSTANCE,
+    text: &str,
+    x: i32,
+    y: i32,
+    width: i32,
+    height: i32,
+    id: i32,
+) {
+    let text_wide: Vec<u16> = text.encode_utf16().chain(Some(0)).collect();
+
+    let _ = CreateWindowExW(
+        WINDOW_EX_STYLE::default(),
+        w!("BUTTON"),
+        PCWSTR(text_wide.as_ptr()),
+        WS_CHILD | WS_VISIBLE | WS_TABSTOP | WINDOW_STYLE(BS_AUTOCHECKBOX as u32),
+        x,
+        y,
+        width,
+        height,
+        parent,
+        HMENU(id as *mut _),
+        instance,
+        None,
+    );
+}
+
+/// Crea un combobox para seleccionar colores
+unsafe fn create_color_combo(
+    parent: HWND,
+    instance: HINSTANCE,
+    x: i32,
+    y: i32,
+    width: i32,
+    height: i32,
+    id: i32,
+) {
+    const CB_ADDSTRING: u32 = 0x0143;
+    const CB_SETITEMDATA: u32 = 0x0151;
+
+    let combo = CreateWindowExW(
+        WINDOW_EX_STYLE::default(),
+        w!("COMBOBOX"),
+        w!(""),
+        WS_CHILD | WS_VISIBLE | WS_TABSTOP | WINDOW_STYLE(CBS_DROPDOWNLIST as u32),
+        x,
+        y,
+        width,
+        height,
+        parent,
+        HMENU(id as *mut _),
+        instance,
+        None,
+    )
+    .unwrap();
+
+    // Añadir opciones de color
+    let colors = [
+        ("Negro", 0x00000000u32),
+        ("Gris oscuro", 0x00404040u32),
+        ("Gris", 0x00808080u32),
+        ("Azul oscuro", 0x00800000u32),
+        ("Verde oscuro", 0x00008000u32),
+        ("Rojo oscuro", 0x00000080u32),
+        ("Azul", 0x00FF0000u32),
+        ("Verde", 0x0000FF00u32),
+        ("Rojo", 0x000000FFu32),
+    ];
+
+    for (_i, (name, value)) in colors.iter().enumerate() {
+        let name_wide: Vec<u16> = name.encode_utf16().chain(Some(0)).collect();
+        let idx = SendMessageW(
+            combo,
+            CB_ADDSTRING,
+            WPARAM(0),
+            LPARAM(name_wide.as_ptr() as isize),
+        );
+        let _ = SendMessageW(combo, CB_SETITEMDATA, WPARAM(idx.0 as usize), LPARAM(*value as isize));
+    }
+}
+
 /// Carga la configuración actual en los controles
 unsafe fn load_current_settings(hwnd: HWND) {
     if let Some(config) = RUNTIME_CONFIG.get() {
@@ -460,6 +651,24 @@ unsafe fn load_current_settings(hwnd: HWND) {
         let auto_hide = config.auto_hide_delay_ms();
         set_slider_value(hwnd, IDC_AUTO_HIDE_SLIDER, auto_hide as i32);
         update_value_label(hwnd, IDC_AUTO_HIDE_VALUE, auto_hide as i32, "");
+
+        // Color del backdrop
+        let color = config.backdrop_color();
+        set_color_combo_value(hwnd, IDC_COLOR_COMBO, color);
+
+        // Animación habilitada
+        let animation_enabled = config.animation_enabled();
+        set_checkbox_value(hwnd, IDC_ANIMATION_ENABLE, animation_enabled);
+
+        // Radio inicial de animación
+        let anim_radius = config.animation_initial_radius();
+        set_slider_value(hwnd, IDC_ANIMATION_RADIUS_SLIDER, anim_radius);
+        update_value_label(hwnd, IDC_ANIMATION_RADIUS_VALUE, anim_radius, "");
+
+        // Duración de animación
+        let anim_duration = config.animation_duration_ms();
+        set_slider_value(hwnd, IDC_ANIMATION_DURATION_SLIDER, anim_duration as i32);
+        update_value_label(hwnd, IDC_ANIMATION_DURATION_VALUE, anim_duration as i32, "");
     }
 }
 
@@ -476,6 +685,61 @@ unsafe fn get_slider_value(hwnd: HWND, slider_id: i32) -> i32 {
         return SendMessageW(slider, TBM_GETPOS, WPARAM(0), LPARAM(0)).0 as i32;
     }
     0
+}
+
+/// Establece el estado de un checkbox
+unsafe fn set_checkbox_value(hwnd: HWND, checkbox_id: i32, checked: bool) {
+    const BM_SETCHECK: u32 = 0x00F1;
+    const BST_CHECKED: usize = 1;
+    const BST_UNCHECKED: usize = 0;
+
+    if let Ok(checkbox) = GetDlgItem(hwnd, checkbox_id) {
+        let state = if checked { BST_CHECKED } else { BST_UNCHECKED };
+        let _ = SendMessageW(checkbox, BM_SETCHECK, WPARAM(state), LPARAM(0));
+    }
+}
+
+/// Obtiene el estado de un checkbox
+unsafe fn get_checkbox_value(hwnd: HWND, checkbox_id: i32) -> bool {
+    const BM_GETCHECK: u32 = 0x00F0;
+    const BST_CHECKED: isize = 1;
+
+    if let Ok(checkbox) = GetDlgItem(hwnd, checkbox_id) {
+        return SendMessageW(checkbox, BM_GETCHECK, WPARAM(0), LPARAM(0)).0 == BST_CHECKED;
+    }
+    false
+}
+
+/// Establece el color seleccionado en el combobox
+unsafe fn set_color_combo_value(hwnd: HWND, combo_id: i32, color: u32) {
+    const CB_GETCOUNT: u32 = 0x0146;
+    const CB_GETITEMDATA: u32 = 0x0150;
+    const CB_SETCURSEL: u32 = 0x014E;
+
+    if let Ok(combo) = GetDlgItem(hwnd, combo_id) {
+        let count = SendMessageW(combo, CB_GETCOUNT, WPARAM(0), LPARAM(0)).0;
+        for i in 0..count {
+            let item_data = SendMessageW(combo, CB_GETITEMDATA, WPARAM(i as usize), LPARAM(0)).0 as u32;
+            if item_data == color {
+                let _ = SendMessageW(combo, CB_SETCURSEL, WPARAM(i as usize), LPARAM(0));
+                break;
+            }
+        }
+    }
+}
+
+/// Obtiene el color seleccionado del combobox
+unsafe fn get_color_combo_value(hwnd: HWND, combo_id: i32) -> u32 {
+    const CB_GETCURSEL: u32 = 0x0147;
+    const CB_GETITEMDATA: u32 = 0x0150;
+
+    if let Ok(combo) = GetDlgItem(hwnd, combo_id) {
+        let sel = SendMessageW(combo, CB_GETCURSEL, WPARAM(0), LPARAM(0)).0;
+        if sel >= 0 {
+            return SendMessageW(combo, CB_GETITEMDATA, WPARAM(sel as usize), LPARAM(0)).0 as u32;
+        }
+    }
+    0x00000000 // Negro por defecto
 }
 
 /// Actualiza el label que muestra el valor actual
@@ -511,6 +775,12 @@ unsafe fn handle_slider_change(hwnd: HWND, lparam: LPARAM) {
         IDC_AUTO_HIDE_SLIDER => {
             update_value_label(hwnd, IDC_AUTO_HIDE_VALUE, value, "");
         }
+        IDC_ANIMATION_RADIUS_SLIDER => {
+            update_value_label(hwnd, IDC_ANIMATION_RADIUS_VALUE, value, "");
+        }
+        IDC_ANIMATION_DURATION_SLIDER => {
+            update_value_label(hwnd, IDC_ANIMATION_DURATION_VALUE, value, "");
+        }
         _ => {}
     }
 }
@@ -523,20 +793,30 @@ unsafe fn save_current_settings(hwnd: HWND) {
     let radius = get_slider_value(hwnd, IDC_RADIUS_SLIDER);
     let auto_hide = get_slider_value(hwnd, IDC_AUTO_HIDE_SLIDER) as u64;
 
+    // Obtener valores de color y animación
+    let backdrop_color = get_color_combo_value(hwnd, IDC_COLOR_COMBO);
+    let animation_enabled = get_checkbox_value(hwnd, IDC_ANIMATION_ENABLE);
+    let animation_initial_radius = get_slider_value(hwnd, IDC_ANIMATION_RADIUS_SLIDER);
+    let animation_duration_ms = get_slider_value(hwnd, IDC_ANIMATION_DURATION_SLIDER) as u64;
+
     // Actualizar RuntimeConfig
     if let Some(config) = RUNTIME_CONFIG.get() {
         config.set_double_tap_time_ms(double_tap);
         config.set_backdrop_opacity(opacity);
+        config.set_backdrop_color(backdrop_color);
         config.set_spotlight_radius(radius);
         config.set_auto_hide_delay_ms(auto_hide);
+        config.set_animation_enabled(animation_enabled);
+        config.set_animation_initial_radius(animation_initial_radius);
+        config.set_animation_duration_ms(animation_duration_ms);
 
-        // Actualizar la opacidad de la ventana del spotlight inmediatamente
+        // Actualizar la opacidad y color de la ventana del spotlight inmediatamente
         if let Some(spotlight_hwnd) = GlobalState::get_hwnd() {
             let _ = SetLayeredWindowAttributes(
                 spotlight_hwnd,
-                COLORREF(0),
+                COLORREF(backdrop_color),
                 opacity,
-                LWA_ALPHA,
+                LWA_COLORKEY | LWA_ALPHA,
             );
         }
 
@@ -544,8 +824,12 @@ unsafe fn save_current_settings(hwnd: HWND) {
         let settings = Settings {
             double_tap_time_ms: double_tap,
             backdrop_opacity: opacity,
+            backdrop_color,
             spotlight_radius: radius,
             auto_hide_delay_ms: auto_hide,
+            animation_enabled,
+            animation_initial_radius,
+            animation_duration_ms,
         };
 
         let _ = save_config(&settings);

@@ -37,6 +37,15 @@ pub const IDC_RADIUS_VALUE: i32 = 2009;
 pub const IDC_AUTO_HIDE_LABEL: i32 = 2010;
 pub const IDC_AUTO_HIDE_SLIDER: i32 = 2011;
 pub const IDC_AUTO_HIDE_VALUE: i32 = 2012;
+pub const IDC_COLOR_LABEL: i32 = 2013;
+pub const IDC_COLOR_COMBO: i32 = 2014;
+pub const IDC_ANIMATION_ENABLE: i32 = 2015;
+pub const IDC_ANIMATION_RADIUS_LABEL: i32 = 2016;
+pub const IDC_ANIMATION_RADIUS_SLIDER: i32 = 2017;
+pub const IDC_ANIMATION_RADIUS_VALUE: i32 = 2018;
+pub const IDC_ANIMATION_DURATION_LABEL: i32 = 2019;
+pub const IDC_ANIMATION_DURATION_SLIDER: i32 = 2020;
+pub const IDC_ANIMATION_DURATION_VALUE: i32 = 2021;
 
 /// Botones estándar del diálogo
 pub const IDOK: i32 = 1;

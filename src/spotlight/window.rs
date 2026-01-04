@@ -53,9 +53,14 @@ pub unsafe fn create_spotlight_window(instance: HINSTANCE) -> Result<HWND> {
         None,
     )?;
 
-    // Configurar opacidad de la capa
+    // Configurar opacidad y color de la capa
     let config = RUNTIME_CONFIG.get().unwrap();
-    SetLayeredWindowAttributes(hwnd, COLORREF(0), config.backdrop_opacity(), LWA_ALPHA)?;
+    SetLayeredWindowAttributes(
+        hwnd,
+        COLORREF(config.backdrop_color()),
+        config.backdrop_opacity(),
+        LWA_COLORKEY | LWA_ALPHA,
+    )?;
 
     Ok(hwnd)
 }
@@ -143,24 +148,33 @@ pub unsafe fn show_spotlight(hwnd: HWND) {
         SWP_NOACTIVATE,
     );
 
-    // Iniciar animación con radio grande
-    GlobalState::start_animation(ConfigDefaults::ANIMATION_INITIAL_RADIUS);
+    let config = RUNTIME_CONFIG.get().unwrap();
 
-    // Aplicar región inicial con el radio de animación
-    let initial_radius = GlobalState::get_animation_radius();
-    apply_spotlight_region(hwnd, cursor_pos, screen, initial_radius);
+    // Iniciar animación si está habilitada
+    if config.animation_enabled() {
+        GlobalState::start_animation(config.animation_initial_radius());
+
+        // Aplicar región inicial con el radio de animación
+        let initial_radius = GlobalState::get_animation_radius();
+        apply_spotlight_region(hwnd, cursor_pos, screen, initial_radius);
+
+        // Iniciar timer de animación
+        let _ = SetTimer(
+            hwnd,
+            TIMER_ANIMATION,
+            ConfigDefaults::ANIMATION_INTERVAL_MS,
+            None,
+        );
+    } else {
+        // Sin animación, aplicar región directamente con el radio configurado
+        apply_spotlight_region(hwnd, cursor_pos, screen, config.spotlight_radius());
+    }
 
     // Mostrar ventana sin activarla
     let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
 
-    // Iniciar timers
+    // Iniciar timer de actualización
     let _ = SetTimer(hwnd, TIMER_UPDATE, ConfigDefaults::UPDATE_INTERVAL_MS, None);
-    let _ = SetTimer(
-        hwnd,
-        TIMER_ANIMATION,
-        ConfigDefaults::ANIMATION_INTERVAL_MS,
-        None,
-    );
 }
 
 /// Oculta el spotlight
@@ -233,9 +247,10 @@ pub unsafe fn animate_spotlight(hwnd: HWND) {
 
     let elapsed = GlobalState::animation_elapsed_time();
     let config = RUNTIME_CONFIG.get().unwrap();
+    let animation_duration = config.animation_duration_ms();
 
     // Si la animación ha terminado, detenerla
-    if elapsed >= ConfigDefaults::ANIMATION_DURATION_MS {
+    if elapsed >= animation_duration {
         GlobalState::stop_animation();
         let _ = KillTimer(hwnd, TIMER_ANIMATION);
 
@@ -247,10 +262,10 @@ pub unsafe fn animate_spotlight(hwnd: HWND) {
     }
 
     // Calcular progreso de la animación (0.0 a 1.0)
-    let progress = elapsed as f32 / ConfigDefaults::ANIMATION_DURATION_MS as f32;
+    let progress = elapsed as f32 / animation_duration as f32;
 
     // Interpolación lineal del radio
-    let initial_radius = ConfigDefaults::ANIMATION_INITIAL_RADIUS as f32;
+    let initial_radius = config.animation_initial_radius() as f32;
     let target_radius = config.spotlight_radius() as f32;
     let current_radius = (initial_radius - (initial_radius - target_radius) * progress) as i32;
 

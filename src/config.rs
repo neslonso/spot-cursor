@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicI32, AtomicU64, AtomicU8, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU32, AtomicU64, AtomicU8, Ordering};
 use std::sync::OnceLock;
 
 /// Valores por defecto de la configuración
@@ -19,8 +19,12 @@ impl ConfigDefaults {
 
     // Constantes de animación
     pub const ANIMATION_INTERVAL_MS: u32 = 16; // ~60 FPS
+    pub const ANIMATION_ENABLED: bool = true;
     pub const ANIMATION_INITIAL_RADIUS: i32 = 600; // Radio inicial grande
     pub const ANIMATION_DURATION_MS: u64 = 300; // Duración total de la animación
+
+    // Color por defecto del backdrop (negro)
+    pub const BACKDROP_COLOR: u32 = 0x00000000; // Negro
 }
 
 /// Configuración serializable para persistencia
@@ -28,8 +32,12 @@ impl ConfigDefaults {
 pub struct Settings {
     pub double_tap_time_ms: u64,
     pub backdrop_opacity: u8,
+    pub backdrop_color: u32,
     pub spotlight_radius: i32,
     pub auto_hide_delay_ms: u64,
+    pub animation_enabled: bool,
+    pub animation_initial_radius: i32,
+    pub animation_duration_ms: u64,
 }
 
 impl Settings {
@@ -38,8 +46,12 @@ impl Settings {
         Self {
             double_tap_time_ms: ConfigDefaults::DOUBLE_TAP_TIME_MS,
             backdrop_opacity: ConfigDefaults::BACKDROP_OPACITY,
+            backdrop_color: ConfigDefaults::BACKDROP_COLOR,
             spotlight_radius: ConfigDefaults::SPOTLIGHT_RADIUS,
             auto_hide_delay_ms: ConfigDefaults::AUTO_HIDE_DELAY_MS,
+            animation_enabled: ConfigDefaults::ANIMATION_ENABLED,
+            animation_initial_radius: ConfigDefaults::ANIMATION_INITIAL_RADIUS,
+            animation_duration_ms: ConfigDefaults::ANIMATION_DURATION_MS,
         }
     }
 
@@ -54,6 +66,12 @@ impl Settings {
         if self.auto_hide_delay_ms < 500 || self.auto_hide_delay_ms > 10000 {
             return Err("Auto-hide delay debe estar entre 500-10000ms".to_string());
         }
+        if self.animation_initial_radius < 100 || self.animation_initial_radius > 1000 {
+            return Err("Radio inicial de animación debe estar entre 100-1000 píxeles".to_string());
+        }
+        if self.animation_duration_ms < 100 || self.animation_duration_ms > 2000 {
+            return Err("Duración de animación debe estar entre 100-2000ms".to_string());
+        }
         Ok(())
     }
 }
@@ -62,8 +80,12 @@ impl Settings {
 pub struct RuntimeConfig {
     double_tap_time_ms: AtomicU64,
     backdrop_opacity: AtomicU8,
+    backdrop_color: AtomicU32,
     spotlight_radius: AtomicI32,
     auto_hide_delay_ms: AtomicU64,
+    animation_enabled: AtomicBool,
+    animation_initial_radius: AtomicI32,
+    animation_duration_ms: AtomicU64,
 }
 
 impl RuntimeConfig {
@@ -72,8 +94,12 @@ impl RuntimeConfig {
         Self {
             double_tap_time_ms: AtomicU64::new(ConfigDefaults::DOUBLE_TAP_TIME_MS),
             backdrop_opacity: AtomicU8::new(ConfigDefaults::BACKDROP_OPACITY),
+            backdrop_color: AtomicU32::new(ConfigDefaults::BACKDROP_COLOR),
             spotlight_radius: AtomicI32::new(ConfigDefaults::SPOTLIGHT_RADIUS),
             auto_hide_delay_ms: AtomicU64::new(ConfigDefaults::AUTO_HIDE_DELAY_MS),
+            animation_enabled: AtomicBool::new(ConfigDefaults::ANIMATION_ENABLED),
+            animation_initial_radius: AtomicI32::new(ConfigDefaults::ANIMATION_INITIAL_RADIUS),
+            animation_duration_ms: AtomicU64::new(ConfigDefaults::ANIMATION_DURATION_MS),
         }
     }
 
@@ -83,10 +109,18 @@ impl RuntimeConfig {
             .store(settings.double_tap_time_ms, Ordering::Relaxed);
         self.backdrop_opacity
             .store(settings.backdrop_opacity, Ordering::Relaxed);
+        self.backdrop_color
+            .store(settings.backdrop_color, Ordering::Relaxed);
         self.spotlight_radius
             .store(settings.spotlight_radius, Ordering::Relaxed);
         self.auto_hide_delay_ms
             .store(settings.auto_hide_delay_ms, Ordering::Relaxed);
+        self.animation_enabled
+            .store(settings.animation_enabled, Ordering::Relaxed);
+        self.animation_initial_radius
+            .store(settings.animation_initial_radius, Ordering::Relaxed);
+        self.animation_duration_ms
+            .store(settings.animation_duration_ms, Ordering::Relaxed);
     }
 
     /// Exporta valores actuales a Settings
@@ -94,8 +128,12 @@ impl RuntimeConfig {
         Settings {
             double_tap_time_ms: self.double_tap_time_ms.load(Ordering::Relaxed),
             backdrop_opacity: self.backdrop_opacity.load(Ordering::Relaxed),
+            backdrop_color: self.backdrop_color.load(Ordering::Relaxed),
             spotlight_radius: self.spotlight_radius.load(Ordering::Relaxed),
             auto_hide_delay_ms: self.auto_hide_delay_ms.load(Ordering::Relaxed),
+            animation_enabled: self.animation_enabled.load(Ordering::Relaxed),
+            animation_initial_radius: self.animation_initial_radius.load(Ordering::Relaxed),
+            animation_duration_ms: self.animation_duration_ms.load(Ordering::Relaxed),
         }
     }
 
@@ -123,6 +161,30 @@ impl RuntimeConfig {
         self.auto_hide_delay_ms.load(Ordering::Relaxed)
     }
 
+    /// Obtiene el color del fondo (COLORREF)
+    #[inline]
+    pub fn backdrop_color(&self) -> u32 {
+        self.backdrop_color.load(Ordering::Relaxed)
+    }
+
+    /// Obtiene si la animación está habilitada
+    #[inline]
+    pub fn animation_enabled(&self) -> bool {
+        self.animation_enabled.load(Ordering::Relaxed)
+    }
+
+    /// Obtiene el radio inicial de la animación
+    #[inline]
+    pub fn animation_initial_radius(&self) -> i32 {
+        self.animation_initial_radius.load(Ordering::Relaxed)
+    }
+
+    /// Obtiene la duración de la animación en milisegundos
+    #[inline]
+    pub fn animation_duration_ms(&self) -> u64 {
+        self.animation_duration_ms.load(Ordering::Relaxed)
+    }
+
     /// Establece el tiempo máximo entre pulsaciones de Ctrl
     #[inline]
     pub fn set_double_tap_time_ms(&self, value: u64) {
@@ -145,6 +207,30 @@ impl RuntimeConfig {
     #[inline]
     pub fn set_auto_hide_delay_ms(&self, value: u64) {
         self.auto_hide_delay_ms.store(value, Ordering::Relaxed);
+    }
+
+    /// Establece el color del fondo (COLORREF)
+    #[inline]
+    pub fn set_backdrop_color(&self, value: u32) {
+        self.backdrop_color.store(value, Ordering::Relaxed);
+    }
+
+    /// Establece si la animación está habilitada
+    #[inline]
+    pub fn set_animation_enabled(&self, value: bool) {
+        self.animation_enabled.store(value, Ordering::Relaxed);
+    }
+
+    /// Establece el radio inicial de la animación
+    #[inline]
+    pub fn set_animation_initial_radius(&self, value: i32) {
+        self.animation_initial_radius.store(value, Ordering::Relaxed);
+    }
+
+    /// Establece la duración de la animación
+    #[inline]
+    pub fn set_animation_duration_ms(&self, value: u64) {
+        self.animation_duration_ms.store(value, Ordering::Relaxed);
     }
 }
 
