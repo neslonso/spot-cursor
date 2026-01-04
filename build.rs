@@ -21,8 +21,10 @@ fn main() {
         };
 
         // Compilar el archivo .rc a .o
+        // -c 65001 = UTF-8 codepage para que interprete correctamente tildes y símbolos
         let status = Command::new(windres)
             .args(&[
+                "-c", "65001",              // UTF-8 input
                 "resources.rc",
                 "-O", "coff",
                 "-o", &format!("{}/resources.o", out_dir),
