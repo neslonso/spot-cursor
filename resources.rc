@@ -1,0 +1,31 @@
+#include <windows.h>
+
+// Información de versión
+1 VERSIONINFO
+FILEVERSION     1,0,0,0
+PRODUCTVERSION  1,0,0,0
+FILEFLAGSMASK   0x3fL
+FILEFLAGS       0x0L
+FILEOS          VOS_NT_WINDOWS32
+FILETYPE        VFT_APP
+FILESUBTYPE     VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904b0"  // Español - Unicode
+        BEGIN
+            VALUE "CompanyName",      "Néstor"
+            VALUE "FileDescription",  "Spotlight para localizar el cursor"
+            VALUE "FileVersion",      "1.0.0.0"
+            VALUE "InternalName",     "spot-cursor"
+            VALUE "LegalCopyright",   "Copyright © 2024-2025 Néstor"
+            VALUE "OriginalFilename", "spot-cursor.exe"
+            VALUE "ProductName",      "SpotCursor"
+            VALUE "ProductVersion",   "1.0.0.0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200  // Inglés US - Unicode
+    END
+END
