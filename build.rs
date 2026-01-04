@@ -1,25 +1,48 @@
-//! Build script para generar recursos de Windows
+//! Build script para compilar recursos de Windows
+
+use std::process::Command;
+use std::env;
 
 fn main() {
-    // Solo generar recursos en Windows
-    if std::env::var("CARGO_CFG_TARGET_OS").unwrap() == "windows" {
-        let mut res = winres::WindowsResource::new();
+    // Solo compilar recursos si el target es Windows
+    let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
 
-        // Información del producto
-        res.set("ProductName", "SpotCursor")
-            .set("FileDescription", "Spotlight para localizar el cursor")
-            .set("CompanyName", "Néstor")
-            .set("LegalCopyright", "Copyright © 2024-2025 Néstor")
-            .set("OriginalFilename", "spot-cursor.exe");
+    if target_os == "windows" {
+        println!("cargo:rerun-if-changed=resources.rc");
 
-        // Versión del archivo y del producto (leer de Cargo.toml)
-        let version = env!("CARGO_PKG_VERSION");
-        res.set("ProductVersion", version)
-            .set("FileVersion", version);
+        let target = env::var("TARGET").unwrap();
+        let out_dir = env::var("OUT_DIR").unwrap();
 
-        // Compilar recursos
-        if let Err(e) = res.compile() {
-            eprintln!("Error compilando recursos de Windows: {}", e);
+        // Determinar el compilador de recursos según el target
+        let windres = if target.contains("gnu") {
+            "x86_64-w64-mingw32-windres"
+        } else {
+            "windres"
+        };
+
+        // Compilar el archivo .rc a .o
+        let status = Command::new(windres)
+            .args(&[
+                "resources.rc",
+                "-O", "coff",
+                "-o", &format!("{}/resources.o", out_dir),
+            ])
+            .status();
+
+        match status {
+            Ok(s) if s.success() => {
+                println!("cargo:rustc-link-arg={}/resources.o", out_dir);
+                println!("✓ Recursos de Windows compilados correctamente");
+            }
+            Ok(s) => {
+                eprintln!("⚠ windres falló con código: {:?}", s.code());
+                eprintln!("  Los metadatos de Windows no se incluirán");
+            }
+            Err(e) => {
+                eprintln!("⚠ No se pudo ejecutar {}: {}", windres, e);
+                eprintln!("  Los metadatos de Windows no se incluirán");
+                eprintln!("  Instala mingw-w64: sudo apt-get install mingw-w64");
+            }
         }
     }
 }

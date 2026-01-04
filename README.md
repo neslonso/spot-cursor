@@ -53,10 +53,12 @@ Si el archivo no existe, se creará automáticamente con valores por defecto al 
 # Instalar target de Windows
 rustup target add x86_64-pc-windows-gnu
 
-# Instalar linker MinGW
+# Instalar MinGW (incluye linker y windres para recursos de Windows)
 sudo apt-get update
-sudo apt-get install -y gcc-mingw-w64-x86-64
+sudo apt-get install -y gcc-mingw-w64-x86-64 mingw-w64
 ```
+
+**Nota:** `mingw-w64` incluye `windres`, necesario para compilar los metadatos del ejecutable (versión, copyright, etc.).
 
 ### Compilar
 
