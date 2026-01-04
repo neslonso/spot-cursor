@@ -457,8 +457,6 @@ unsafe fn create_controls(hwnd: HWND) {
         IDC_ANIMATION_DURATION_VALUE,
     );
 
-    y_pos += CONTROL_HEIGHT + SECTION_SPACING;
-
     // --- Botones OK y Cancel ---
     let button_y = DIALOG_HEIGHT - MARGIN - BUTTON_HEIGHT - 40;
     let button_x_ok = DIALOG_WIDTH - MARGIN - BUTTON_WIDTH * 2 - 10;
@@ -726,7 +724,7 @@ unsafe fn get_checkbox_value(hwnd: HWND, checkbox_id: i32) -> bool {
 }
 
 /// Actualiza el preview del color
-unsafe fn update_color_preview(hwnd: HWND, preview_id: i32, color: u32) {
+unsafe fn update_color_preview(hwnd: HWND, preview_id: i32, _color: u32) {
     if let Ok(preview) = GetDlgItem(hwnd, preview_id) {
         // Forzar repintado del control
         let _ = InvalidateRect(preview, None, TRUE);
@@ -735,6 +733,7 @@ unsafe fn update_color_preview(hwnd: HWND, preview_id: i32, color: u32) {
 
 /// Estructura CHOOSECOLORW para el diálogo de selección de color
 #[repr(C)]
+#[allow(non_snake_case)]
 struct ChooseColorW {
     lStructSize: u32,
     hwndOwner: HWND,

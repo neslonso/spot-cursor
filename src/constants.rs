@@ -47,7 +47,3 @@ pub const IDC_ANIMATION_RADIUS_VALUE: i32 = 2019;
 pub const IDC_ANIMATION_DURATION_LABEL: i32 = 2020;
 pub const IDC_ANIMATION_DURATION_SLIDER: i32 = 2021;
 pub const IDC_ANIMATION_DURATION_VALUE: i32 = 2022;
-
-/// Botones estándar del diálogo
-pub const IDOK: i32 = 1;
-pub const IDCANCEL: i32 = 2;

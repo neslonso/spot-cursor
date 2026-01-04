@@ -124,6 +124,7 @@ impl RuntimeConfig {
     }
 
     /// Exporta valores actuales a Settings
+    #[allow(dead_code)]
     pub fn to_settings(&self) -> Settings {
         Settings {
             double_tap_time_ms: self.double_tap_time_ms.load(Ordering::Relaxed),
