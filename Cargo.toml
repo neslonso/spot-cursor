@@ -1,9 +1,11 @@
 [package]
 name = "spot-cursor"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
 authors = ["Néstor"]
 description = "Spotlight portable para localizar el cursor - estilo PowerToys"
+license = "MIT"
+repository = "https://github.com/neslonso/spot-cursor"
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
@@ -22,6 +24,9 @@ features = [
     "Win32_UI_Shell",              # Para system tray
     "Win32_Storage_FileSystem",    # Para guardar config
 ]
+
+[build-dependencies]
+winres = "0.1"
 
 [profile.release]
 opt-level = "z"   # Optimizar tamaño
