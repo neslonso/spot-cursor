@@ -1,5 +1,8 @@
 #include <windows.h>
 
+// Icono de la aplicación
+100 ICON "icon.ico"
+
 // Información de versión
 1 VERSIONINFO
 FILEVERSION     1,0,0,0
