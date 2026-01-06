@@ -10,6 +10,7 @@ use windows::core::*;
 use windows::Win32::Foundation::*;
 use windows::Win32::Graphics::Gdi::*;
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
+use windows::Win32::System::Registry::*;
 use windows::Win32::UI::Controls::*;
 use windows::Win32::UI::WindowsAndMessaging::*;
 
@@ -18,9 +19,9 @@ use crate::constants::{
     IDC_ANIMATION_DURATION_LABEL, IDC_ANIMATION_DURATION_SLIDER, IDC_ANIMATION_DURATION_VALUE,
     IDC_ANIMATION_ENABLE, IDC_ANIMATION_RADIUS_LABEL, IDC_ANIMATION_RADIUS_SLIDER,
     IDC_ANIMATION_RADIUS_VALUE, IDC_AUTO_HIDE_LABEL, IDC_AUTO_HIDE_SLIDER, IDC_AUTO_HIDE_VALUE,
-    IDC_COLOR_BUTTON, IDC_COLOR_LABEL, IDC_COLOR_PREVIEW, IDC_DOUBLE_TAP_LABEL,
-    IDC_DOUBLE_TAP_SLIDER, IDC_DOUBLE_TAP_VALUE, IDC_OPACITY_LABEL, IDC_OPACITY_SLIDER,
-    IDC_OPACITY_VALUE, IDC_RADIUS_LABEL, IDC_RADIUS_SLIDER, IDC_RADIUS_VALUE,
+    IDC_AUTOSTART_CHECKBOX, IDC_COLOR_BUTTON, IDC_COLOR_LABEL, IDC_COLOR_PREVIEW,
+    IDC_DOUBLE_TAP_LABEL, IDC_DOUBLE_TAP_SLIDER, IDC_DOUBLE_TAP_VALUE, IDC_OPACITY_LABEL,
+    IDC_OPACITY_SLIDER, IDC_OPACITY_VALUE, IDC_RADIUS_LABEL, IDC_RADIUS_SLIDER, IDC_RADIUS_VALUE,
 };
 use crate::spotlight::GlobalState;
 
@@ -40,7 +41,7 @@ const TBM_SETRANGE: u32 = 0x0406;
 const TBM_SETTICFREQ: u32 = 0x0414;
 
 const DIALOG_WIDTH: i32 = 480;
-const DIALOG_HEIGHT: i32 = 650;
+const DIALOG_HEIGHT: i32 = 690;
 const MARGIN: i32 = 25;
 const CONTROL_HEIGHT: i32 = 28;
 const LABEL_HEIGHT: i32 = 22;
@@ -405,7 +406,7 @@ unsafe fn create_controls(hwnd: HWND) {
         CONTROL_HEIGHT,
         IDC_ANIMATION_RADIUS_SLIDER,
         100,
-        1000,
+        5000,
     );
 
     create_label(
@@ -455,6 +456,20 @@ unsafe fn create_controls(hwnd: HWND) {
         VALUE_WIDTH,
         CONTROL_HEIGHT,
         IDC_ANIMATION_DURATION_VALUE,
+    );
+
+    y_pos += CONTROL_HEIGHT + SECTION_SPACING;
+
+    // --- Autostart con Windows ---
+    create_checkbox(
+        hwnd,
+        instance,
+        "Iniciar automáticamente con Windows",
+        MARGIN,
+        y_pos,
+        SLIDER_WIDTH,
+        CONTROL_HEIGHT,
+        IDC_AUTOSTART_CHECKBOX,
     );
 
     // --- Botones OK y Cancel ---
@@ -682,6 +697,10 @@ unsafe fn load_current_settings(hwnd: HWND) {
         let anim_duration = config.animation_duration_ms();
         set_slider_value(hwnd, IDC_ANIMATION_DURATION_SLIDER, anim_duration as i32);
         update_value_label(hwnd, IDC_ANIMATION_DURATION_VALUE, anim_duration as i32, "");
+
+        // Autostart
+        let autostart = config.autostart();
+        set_checkbox_value(hwnd, IDC_AUTOSTART_CHECKBOX, autostart);
     }
 }
 
@@ -837,6 +856,7 @@ unsafe fn save_current_settings(hwnd: HWND) {
     let animation_enabled = get_checkbox_value(hwnd, IDC_ANIMATION_ENABLE);
     let animation_initial_radius = get_slider_value(hwnd, IDC_ANIMATION_RADIUS_SLIDER);
     let animation_duration_ms = get_slider_value(hwnd, IDC_ANIMATION_DURATION_SLIDER) as u64;
+    let autostart = get_checkbox_value(hwnd, IDC_AUTOSTART_CHECKBOX);
 
     // Actualizar RuntimeConfig
     if let Some(config) = RUNTIME_CONFIG.get() {
@@ -848,6 +868,7 @@ unsafe fn save_current_settings(hwnd: HWND) {
         config.set_animation_enabled(animation_enabled);
         config.set_animation_initial_radius(animation_initial_radius);
         config.set_animation_duration_ms(animation_duration_ms);
+        config.set_autostart(autostart);
 
         // Actualizar la opacidad de la ventana del spotlight inmediatamente
         if let Some(spotlight_hwnd) = GlobalState::get_hwnd() {
@@ -871,8 +892,78 @@ unsafe fn save_current_settings(hwnd: HWND) {
             animation_enabled,
             animation_initial_radius,
             animation_duration_ms,
+            autostart,
         };
 
         let _ = save_config(&settings);
+
+        // Actualizar la entrada del registro de Windows
+        if let Err(e) = update_autostart_registry(autostart) {
+            // Si falla, mostrar mensaje de error
+            let error_msg = format!("Error al configurar inicio automático: {}", e);
+            let error_wide: Vec<u16> = error_msg.encode_utf16().chain(Some(0)).collect();
+            let _ = MessageBoxW(
+                hwnd,
+                PCWSTR(error_wide.as_ptr()),
+                w!("Error"),
+                MB_OK | MB_ICONERROR,
+            );
+        }
     }
+}
+
+/// Actualiza la entrada del registro para el inicio automático
+unsafe fn update_autostart_registry(enabled: bool) -> Result<()> {
+    const RUN_KEY: PCWSTR = w!("Software\\Microsoft\\Windows\\CurrentVersion\\Run");
+    const APP_NAME: PCWSTR = w!("SpotCursor");
+
+    if enabled {
+        // Abrir o crear la clave del registro
+        let mut hkey = HKEY::default();
+        let result = RegOpenKeyExW(HKEY_CURRENT_USER, RUN_KEY, 0, KEY_WRITE, &mut hkey);
+        if result != ERROR_SUCCESS {
+            return Err(Error::from(result));
+        }
+
+        // Obtener la ruta del ejecutable
+        let exe_path = std::env::current_exe()
+            .map_err(|_| Error::from(ERROR_PATH_NOT_FOUND))?;
+        let exe_path_str = exe_path.to_string_lossy().to_string();
+
+        // Convertir a wide string (UTF-16)
+        let exe_path_wide: Vec<u16> = exe_path_str.encode_utf16().chain(Some(0)).collect();
+
+        // Establecer el valor en el registro
+        let result = RegSetValueExW(
+            hkey,
+            APP_NAME,
+            0,
+            REG_SZ,
+            Some(std::slice::from_raw_parts(
+                exe_path_wide.as_ptr() as *const u8,
+                exe_path_wide.len() * 2,
+            )),
+        );
+
+        if result != ERROR_SUCCESS {
+            let _ = RegCloseKey(hkey);
+            return Err(Error::from(result));
+        }
+
+        let result = RegCloseKey(hkey);
+        if result != ERROR_SUCCESS {
+            return Err(Error::from(result));
+        }
+    } else {
+        // Eliminar la entrada del registro
+        let mut hkey = HKEY::default();
+        let result = RegOpenKeyExW(HKEY_CURRENT_USER, RUN_KEY, 0, KEY_WRITE, &mut hkey);
+        if result == ERROR_SUCCESS {
+            // Ignorar el error si la clave no existe
+            let _ = RegDeleteValueW(hkey, APP_NAME);
+            let _ = RegCloseKey(hkey);
+        }
+    }
+
+    Ok(())
 }
