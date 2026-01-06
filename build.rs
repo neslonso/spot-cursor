@@ -9,6 +9,7 @@ fn main() {
 
     if target_os == "windows" {
         println!("cargo:rerun-if-changed=resources.rc");
+        println!("cargo:rerun-if-changed=icon.ico");
 
         let target = env::var("TARGET").unwrap();
         let out_dir = env::var("OUT_DIR").unwrap();
