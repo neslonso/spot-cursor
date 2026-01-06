@@ -25,6 +25,9 @@ impl ConfigDefaults {
 
     // Color por defecto del backdrop (negro)
     pub const BACKDROP_COLOR: u32 = 0x00000000; // Negro
+
+    // Autostart por defecto
+    pub const AUTOSTART: bool = false;
 }
 
 /// Configuración serializable para persistencia
@@ -38,6 +41,7 @@ pub struct Settings {
     pub animation_enabled: bool,
     pub animation_initial_radius: i32,
     pub animation_duration_ms: u64,
+    pub autostart: bool,
 }
 
 impl Settings {
@@ -52,6 +56,7 @@ impl Settings {
             animation_enabled: ConfigDefaults::ANIMATION_ENABLED,
             animation_initial_radius: ConfigDefaults::ANIMATION_INITIAL_RADIUS,
             animation_duration_ms: ConfigDefaults::ANIMATION_DURATION_MS,
+            autostart: ConfigDefaults::AUTOSTART,
         }
     }
 
@@ -66,8 +71,8 @@ impl Settings {
         if self.auto_hide_delay_ms < 500 || self.auto_hide_delay_ms > 10000 {
             return Err("Auto-hide delay debe estar entre 500-10000ms".to_string());
         }
-        if self.animation_initial_radius < 100 || self.animation_initial_radius > 1000 {
-            return Err("Radio inicial de animación debe estar entre 100-1000 píxeles".to_string());
+        if self.animation_initial_radius < 100 || self.animation_initial_radius > 5000 {
+            return Err("Radio inicial de animación debe estar entre 100-5000 píxeles".to_string());
         }
         if self.animation_duration_ms < 100 || self.animation_duration_ms > 2000 {
             return Err("Duración de animación debe estar entre 100-2000ms".to_string());
@@ -86,6 +91,7 @@ pub struct RuntimeConfig {
     animation_enabled: AtomicBool,
     animation_initial_radius: AtomicI32,
     animation_duration_ms: AtomicU64,
+    autostart: AtomicBool,
 }
 
 impl RuntimeConfig {
@@ -100,6 +106,7 @@ impl RuntimeConfig {
             animation_enabled: AtomicBool::new(ConfigDefaults::ANIMATION_ENABLED),
             animation_initial_radius: AtomicI32::new(ConfigDefaults::ANIMATION_INITIAL_RADIUS),
             animation_duration_ms: AtomicU64::new(ConfigDefaults::ANIMATION_DURATION_MS),
+            autostart: AtomicBool::new(ConfigDefaults::AUTOSTART),
         }
     }
 
@@ -121,6 +128,8 @@ impl RuntimeConfig {
             .store(settings.animation_initial_radius, Ordering::Relaxed);
         self.animation_duration_ms
             .store(settings.animation_duration_ms, Ordering::Relaxed);
+        self.autostart
+            .store(settings.autostart, Ordering::Relaxed);
     }
 
     /// Exporta valores actuales a Settings
@@ -135,6 +144,7 @@ impl RuntimeConfig {
             animation_enabled: self.animation_enabled.load(Ordering::Relaxed),
             animation_initial_radius: self.animation_initial_radius.load(Ordering::Relaxed),
             animation_duration_ms: self.animation_duration_ms.load(Ordering::Relaxed),
+            autostart: self.autostart.load(Ordering::Relaxed),
         }
     }
 
@@ -232,6 +242,18 @@ impl RuntimeConfig {
     #[inline]
     pub fn set_animation_duration_ms(&self, value: u64) {
         self.animation_duration_ms.store(value, Ordering::Relaxed);
+    }
+
+    /// Obtiene si el autostart está habilitado
+    #[inline]
+    pub fn autostart(&self) -> bool {
+        self.autostart.load(Ordering::Relaxed)
+    }
+
+    /// Establece si el autostart está habilitado
+    #[inline]
+    pub fn set_autostart(&self, value: bool) {
+        self.autostart.store(value, Ordering::Relaxed);
     }
 }
 

@@ -23,6 +23,7 @@ features = [
     "Win32_System_SystemInformation",
     "Win32_UI_Shell",              # Para system tray
     "Win32_Storage_FileSystem",    # Para guardar config
+    "Win32_System_Registry",       # Para autostart
 ]
 
 [profile.release]
